@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quiet Company</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Georgia', serif; background-color: #1a1814; color: #e8e2d9; height: 100vh; display: flex; overflow: hidden; }
+        #sidebar { width: 240px; min-width: 240px; background: #141210; border-right: 1px solid #2e2a24; display: flex; flex-direction: column; }
+        #brand { padding: 22px 20px 18px; border-bottom: 1px solid #2e2a24; }
+        #brand h1 { font-size: 15px; font-weight: normal; letter-spacing: 2.5px; text-transform: uppercase; color: #c8b99a; }
+        #brand p { font-size: 10px; color: #5a5248; letter-spacing: 0.8px; margin-top: 5px; font-family: Arial, sans-serif; font-style: italic; }
+        #character-list { flex: 1; overflow-y: auto; padding: 12px 0; }
+        #character-list h3 { font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: #3a3530; padding: 4px 16px 10px; font-family: Arial, sans-serif; }
+        .char-btn { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 16px; background: none; border: none; cursor: pointer; text-align: left; transition: background 0.15s; border-left: 3px solid transparent; }
+        .char-btn:hover { background: #1e1a16; }
+        .char-btn.active { background: #231f1a; border-left-color: var(--accent); }
+        .char-avatar { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; flex-shrink: 0; border: 2px solid #2e2a24; transition: border-color 0.15s; }
+        .char-btn.active .char-avatar, .char-btn:hover .char-avatar { border-color: var(--accent); }
+        .char-info { min-width: 0; }
+        .char-name { font-size: 14px; color: #c8bfb2; font-family: 'Georgia', serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .char-room { font-size: 10px; color: #4a4540; font-family: Arial, sans-serif; margin-top: 2px; letter-spacing: 0.3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .char-btn.active .char-name { color: #e0d4c4; }
+        .char-btn.active .char-room { color: #7a6a5a; }
+        #sidebar-footer { padding: 14px 16px; border-top: 1px solid #2e2a24; }
+        #clear-btn { background: none; border: 1px solid #2e2a24; color: #5a5248; padding: 7px 12px; font-size: 10px; font-family: Arial, sans-serif; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; width: 100%; border-radius: 3px; transition: all 0.15s; }
+        #clear-btn:hover { border-color: #5a5248; color: #9a8a78; }
+        #main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+        #chat-header { padding: 16px 28px; border-bottom: 1px solid #2e2a24; display: flex; align-items: center; gap: 16px; background: #1a1814; min-height: 72px; }
+        #header-avatar { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; border: 2px solid #3a3530; flex-shrink: 0; }
+        #header-text { min-width: 0; }
+        #header-name { font-size: 19px; color: #e8dcc8; font-family: 'Georgia', serif; }
+        #header-room { font-size: 11px; color: #5a5248; font-family: Arial, sans-serif; letter-spacing: 0.8px; margin-top: 2px; }
+        #header-status { margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: 10px; color: #4a4540; font-family: Arial, sans-serif; letter-spacing: 1px; }
+        .status-dot { width: 7px; height: 7px; border-radius: 50%; background: #3d8c5a; }
+        #messages { flex: 1; overflow-y: auto; padding: 24px 28px; display: flex; flex-direction: column; gap: 18px; }
+        #messages::-webkit-scrollbar { width: 4px; }
+        #messages::-webkit-scrollbar-thumb { background: #2e2a24; border-radius: 2px; }
+        .msg-row { display: flex; gap: 10px; animation: fadeUp 0.2s ease; }
+        @keyframes fadeUp { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        .msg-row.user-row { flex-direction: row-reverse; }
+        .msg-avatar { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; flex-shrink: 0; align-self: flex-end; border: 1px solid #2e2a24; }
+        .msg-avatar.user-avatar { background: #2e2a24; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #6b6058; font-family: Arial, sans-serif; width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0; align-self: flex-end; border: 1px solid #2e2a24; }
+        .msg-content { max-width: 68%; }
+        .msg-label { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 5px; font-family: Arial, sans-serif; color: #5a5248; padding: 0 4px; }
+        .user-row .msg-label { text-align: right; }
+        .msg-bubble { padding: 12px 16px; border-radius: 4px; line-height: 1.65; font-size: 14.5px; }
+        .companion-bubble { background: #211d18; border: 1px solid #2e2a24; border-radius: 4px 16px 16px 16px; color: #ddd4c4; }
+        .user-bubble { background: #2a2520; border: 1px solid #3a3530; border-radius: 16px 4px 16px 16px; color: #b8b0a4; font-family: Arial, sans-serif; font-size: 14px; }
+        .typing-cursor::after { content: '▋'; animation: blink 0.7s step-end infinite; font-size: 11px; opacity: 0.5; margin-left: 1px; }
+        @keyframes blink { 50% { opacity: 0; } }
+        .intro-bubble { background: transparent; border: 1px dashed #2e2a24; color: #4a4540; font-style: italic; font-size: 13px; }
+        #input-area { padding: 16px 28px 20px; border-top: 1px solid #2e2a24; display: flex; gap: 10px; align-items: flex-end; }
+        #user-input { flex: 1; background: #1e1a16; border: 1px solid #2e2a24; border-radius: 8px; padding: 11px 15px; color: #e8dcc8; font-family: 'Georgia', serif; font-size: 14px; resize: none; outline: none; line-height: 1.5; min-height: 44px; max-height: 120px; transition: border-color 0.15s; }
+        #user-input::placeholder { color: #3a3530; }
+        #user-input:focus { border-color: #4a4540; }
+        #send-btn { background: #231f1a; border: 1px solid #3a3530; border-radius: 8px; color: #c8b99a; padding: 11px 20px; cursor: pointer; font-family: Arial, sans-serif; font-size: 12px; letter-spacing: 1px; text-transform: uppercase; transition: all 0.15s; white-space: nowrap; }
+        #send-btn:hover:not(:disabled) { background: #2e2a24; border-color: #5a5248; }
+        #send-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+<div id="sidebar">
+    <div id="brand">
+        <h1>Quiet Company</h1>
+        <p>Conversation without complication.</p>
+    </div>
+    <div id="character-list"><h3>Rooms</h3></div>
+    <div id="sidebar-footer">
+        <button id="clear-btn" onclick="clearHistory()">Clear Room</button>
+    </div>
+</div>
+<div id="main">
+    <div id="chat-header">
+        <img id="header-avatar" src="" alt="">
+        <div id="header-text">
+            <div id="header-name">–</div>
+            <div id="header-room">–</div>
+        </div>
+        <div id="header-status"><div class="status-dot"></div>Available</div>
+    </div>
+    <div id="messages"></div>
+    <div id="input-area">
+        <textarea id="user-input" placeholder="Say something…" rows="1" onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+        <button id="send-btn" onclick="sendMessage()">Send</button>
+    </div>
+</div>
+<script>
+let currentChar = "claire", isStreaming = false, characters = {};
+async function init() {
+    try { const res = await fetch("/characters"); characters = await res.json(); }
+    catch { characters = { claire:{name:"Claire",room:"The Soft Landing",color:"#9b7fa0",image:"Claire_Blonde.png"}, elena:{name:"Elena",room:"Mediterranean Room",color:"#b08b72",image:"Elena_2_0.png"}, sienna:{name:"Sienna",room:"The Bright Room",color:"#d4845a",image:"Sienna_on_the_sofa_with_book.png"}, marcus:{name:"Marcus",room:"The Workshop",color:"#6a8fa0",image:"Marcus_pic.png"}, thomas:{name:"Thomas",room:"The Study",color:"#8a8a6a",image:"Thomas.png"}, lian:{name:"Lian",room:"The Garden Room",color:"#7a9b7a",image:"Lian_Wu_photo.png"}, lea:{name:"Léa",room:"The Morning Room",color:"#c4a882",image:"Lea_final_photo.webp"} }; }
+    buildSidebar(); selectChar("claire");
+}
+function imgUrl(f) { return `/static/images/${f}`; }
+function buildSidebar() {
+    const list = document.getElementById("character-list");
+    const h = list.querySelector("h3"); list.innerHTML = ""; list.appendChild(h);
+    Object.entries(characters).forEach(([key,c]) => {
+        const btn = document.createElement("button");
+        btn.className = "char-btn"; btn.dataset.key = key;
+        btn.style.setProperty("--accent", c.color||"#888"); btn.onclick = () => selectChar(key);
+        btn.innerHTML = `<img class="char-avatar" src="${imgUrl(c.image)}" alt="${c.name}" onerror="this.style.display='none'"><div class="char-info"><div class="char-name">${c.name}</div><div class="char-room">${c.room}</div></div>`;
+        list.appendChild(btn);
+    });
+}
+async function selectChar(key) {
+    if (isStreaming) return; currentChar = key;
+    document.querySelectorAll(".char-btn").forEach(b => b.classList.toggle("active", b.dataset.key===key));
+    const c = characters[key]||{name:key,room:"",color:"#888",image:""};
+    document.getElementById("header-avatar").src = imgUrl(c.image);
+    document.getElementById("header-avatar").style.borderColor = c.color;
+    document.getElementById("header-name").textContent = c.name;
+    document.getElementById("header-room").textContent = c.room;
+    await loadHistory(key); document.getElementById("user-input").focus();
+}
+async function loadHistory(key) {
+    const box = document.getElementById("messages"); box.innerHTML = "";
+    try {
+        const res = await fetch(`/history?character=${key}`); const history = await res.json();
+        if (!history||!history.length) { showIntro(key); return; }
+        history.forEach(m => { if(m.role==="user") addUserBubble(m.content); if(m.role==="assistant") addCompanionBubble(key,m.content); });
+        scrollBottom();
+    } catch { showIntro(key); }
+}
+function showIntro(key) {
+    const c = characters[key]||{name:key,color:"#888",image:""};
+    const box = document.getElementById("messages");
+    const row = document.createElement("div"); row.className = "msg-row";
+    row.innerHTML = `<img class="msg-avatar" src="${imgUrl(c.image)}" alt="${c.name}" onerror="this.style.display='none'"><div class="msg-content"><div class="msg-label" style="color:${c.color}">${c.name}</div><div class="msg-bubble companion-bubble intro-bubble">This is the beginning of your conversation.</div></div>`;
+    box.appendChild(row);
+}
+async function sendMessage() {
+    const input = document.getElementById("user-input"); const msg = input.value.trim();
+    if (!msg||isStreaming) return;
+    input.value = ""; autoResize(input); setStreaming(true);
+    addUserBubble(msg); const bubble = addCompanionBubble(currentChar,""); bubble.classList.add("typing-cursor");
+    try {
+        const res = await fetch("/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:msg,character:currentChar})});
+        const reader = res.body.getReader(); const decoder = new TextDecoder(); let buf = "";
+        while(true) {
+            const {done,value} = await reader.read(); if(done) break;
+            buf += decoder.decode(value,{stream:true}); const lines = buf.split("\n"); buf = lines.pop();
+            for(const line of lines) {
+                if(!line.startsWith("data: ")) continue;
+                try { const p = JSON.parse(line.slice(6)); if(p.token){bubble.textContent+=p.token;scrollBottom();} if(p.error) bubble.textContent="(Something went wrong — please try again.)"; } catch{}
+            }
+        }
+    } catch { bubble.textContent="(Connection issue — please try again.)"; }
+    finally { bubble.classList.remove("typing-cursor"); setStreaming(false); }
+}
+function addUserBubble(text) {
+    const box = document.getElementById("messages"); const row = document.createElement("div"); row.className="msg-row user-row";
+    row.innerHTML=`<div class="msg-avatar user-avatar">You</div><div class="msg-content"><div class="msg-label">You</div><div class="msg-bubble user-bubble"></div></div>`;
+    row.querySelector(".user-bubble").textContent=text; box.appendChild(row); scrollBottom();
+}
+function addCompanionBubble(key,text) {
+    const c=characters[key]||{name:key,color:"#888",image:""}; const box=document.getElementById("messages");
+    const row=document.createElement("div"); row.className="msg-row";
+    row.innerHTML=`<img class="msg-avatar" src="${imgUrl(c.image)}" alt="${c.name}" onerror="this.style.display='none'"><div class="msg-content"><div class="msg-label" style="color:${c.color}">${c.name}</div><div class="msg-bubble companion-bubble"></div></div>`;
+    const bubble=row.querySelector(".companion-bubble"); bubble.textContent=text; box.appendChild(row); scrollBottom(); return bubble;
+}
+async function clearHistory() {
+    if(isStreaming) return;
+    await fetch("/clear",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({character:currentChar})});
+    showIntro(currentChar);
+}
+function scrollBottom() { const m=document.getElementById("messages"); m.scrollTop=m.scrollHeight; }
+function setStreaming(v) { isStreaming=v; document.getElementById("send-btn").disabled=v; document.getElementById("user-input").disabled=v; }
+function handleKey(e) { if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendMessage();} }
+function autoResize(el) { el.style.height="auto"; el.style.height=Math.min(el.scrollHeight,120)+"px"; }
+window.onload=init;
+</script>
+</body>
+</html>
