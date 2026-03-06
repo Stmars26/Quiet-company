@@ -1,5 +1,5 @@
 from dotenv import load_dotenv
-load_dotenv()
+load_dotenv("/Users/garyb/Quiet-company/.env", override=True)
 from flask import Flask, render_template, request, jsonify, Response, session, stream_with_context
 import os
 import json
@@ -20,7 +20,7 @@ import anthropic
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "quiet-company-dev-key-change-in-production")
 
-client = anthropic.Anthropic(api_key="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")
+client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
 # In-memory conversation store: { session_id: { character: [messages] } }
 conversation_store = {}
