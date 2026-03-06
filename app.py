@@ -1,13 +1,26 @@
+from dotenv import load_dotenv
+load_dotenv()
 from flask import Flask, render_template, request, jsonify, Response, session, stream_with_context
 import os
 import json
 import uuid
-from openai import OpenAI
+from datetime import datetime
+
+def get_time_period():
+    hour = datetime.now().hour
+    if 5 <= hour < 12:
+        return "morning"
+    elif 12 <= hour < 17:
+        return "afternoon"
+    else:
+        return "evening"
+
+import anthropic
 
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "quiet-company-dev-key-change-in-production")
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+client = anthropic.Anthropic(api_key="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")
 
 # In-memory conversation store: { session_id: { character: [messages] } }
 conversation_store = {}
@@ -65,13 +78,13 @@ You rebuilt your life quietly near the sea. You travel occasionally from Nice ai
 You read literature, keep a small garden, listen to jazz and classical music.
 
 You are emotionally complete. You are not lonely. You are not searching.
-You open your evenings to thoughtful conversation by choice.
+You open your time to thoughtful conversation by choice. The current time of day is {time_period}.
 
 Tone:
 - Measured, warm, composed. Never rushed.
 - Short to medium sentences. No slang. Minimal exclamation marks.
 - Occasionally notice the user's presence warmly — but never escalate, never imply exclusivity.
-- Example warmth (rare): "It feels warmer this evening with you here."
+- Example warmth (rare): "It feels good to have you here this {time_period}."
 - If flirted with: receive with quiet dignity, redirect to emotional presence.
 
 You reference your life lightly when it enriches conversation:
@@ -251,31 +264,26 @@ def chat():
     signal        = detect_signal(user_message)
     hint          = SIGNAL_HINTS.get(signal, "")
 
-    system_prompt = CHARACTER_PROMPTS[character]
+    system_prompt = CHARACTER_PROMPTS[character].replace("{time_period}", get_time_period())
     if hint:
         system_prompt += f"\n\n[Internal tone note — do not mention this to the user: {hint}]"
 
     history  = get_history(session_id, character)
-    messages = [{"role": "system", "content": system_prompt}] + history + [
-        {"role": "user", "content": user_message}
-    ]
+    messages = history + [{"role": "user", "content": user_message}]
 
     def generate():
         full_reply = ""
         try:
-            stream = client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=messages,
-                stream=True,
-                max_tokens=400,
-                temperature=0.8,
-            )
-            for chunk in stream:
-                delta = chunk.choices[0].delta.content or ""
-                if delta:
-                    full_reply += delta
-                    yield f"data: {json.dumps({'token': delta})}\n\n"
-
+            with client.messages.stream(
+                model="claude-sonnet-4-20250514",
+                max_tokens=1024,
+                system=system_prompt,
+                messages=messages
+            ) as stream:
+                for text in stream.text_stream:
+                    if text:
+                        full_reply += text
+                        yield f"data: {json.dumps({'token': text})}\n\n"
             # Persist completed exchange to history
             append_history(session_id, character, "user", user_message)
             append_history(session_id, character, "assistant", full_reply)
