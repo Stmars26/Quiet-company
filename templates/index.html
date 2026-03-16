@@ -59,6 +59,30 @@
         #send-btn:hover:not(:disabled) { background: #2e2a24; border-color: #5a5248; }
         #send-btn:disabled { opacity: 0.35; cursor: not-allowed; }
     </style>
+
+    <style>
+        #subscribe-btn { width: 100%; padding: 10px; background: linear-gradient(135deg, #c9a96e, #a67c52); color: #fff; border: none; border-radius: 6px; font-size: 13px; letter-spacing: 1px; cursor: pointer; margin-bottom: 8px; font-family: Georgia, serif; }
+        #subscribe-btn:hover { background: linear-gradient(135deg, #d4b483, #b08a5f); }
+        #pricing-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 1000; justify-content: center; align-items: center; }
+        #pricing-overlay.open { display: flex; }
+        #pricing-modal { background: #1a1714; border: 1px solid #3a3530; border-radius: 12px; padding: 40px; max-width: 780px; width: 90%; position: relative; }
+        #pricing-modal h2 { color: #e8dcc8; font-family: Georgia, serif; font-size: 24px; text-align: center; margin-bottom: 8px; }
+        #pricing-modal .subtitle { color: #8a7968; text-align: center; font-size: 13px; margin-bottom: 32px; font-family: Arial, sans-serif; }
+        .pricing-cards { display: flex; gap: 16px; justify-content: center; }
+        .pricing-card { background: #211e1a; border: 1px solid #3a3530; border-radius: 8px; padding: 24px; flex: 1; max-width: 220px; text-align: center; }
+        .pricing-card.featured { border-color: #c9a96e; background: #261f18; }
+        .pricing-card .badge { background: #c9a96e; color: #1a1714; font-size: 10px; letter-spacing: 1px; padding: 3px 10px; border-radius: 20px; font-family: Arial, sans-serif; margin-bottom: 12px; display: inline-block; }
+        .pricing-card h3 { color: #e8dcc8; font-family: Georgia, serif; font-size: 16px; margin-bottom: 8px; }
+        .pricing-card .price { color: #c9a96e; font-size: 28px; font-family: Georgia, serif; margin-bottom: 4px; }
+        .pricing-card .price span { font-size: 13px; color: #8a7968; }
+        .pricing-card .intro { color: #6a9a6e; font-size: 11px; margin-bottom: 16px; font-family: Arial, sans-serif; }
+        .pricing-card ul { list-style: none; padding: 0; margin-bottom: 20px; text-align: left; }
+        .pricing-card ul li { color: #a09080; font-size: 12px; font-family: Arial, sans-serif; padding: 4px 0; border-bottom: 1px solid #2e2a24; }
+        .pricing-card ul li::before { content: "✓ "; color: #c9a96e; }
+        .pricing-card a { display: block; padding: 10px; background: #3a3530; color: #e8dcc8; border-radius: 6px; text-decoration: none; font-size: 12px; font-family: Arial, sans-serif; letter-spacing: 0.5px; }
+        .pricing-card.featured a { background: #c9a96e; color: #1a1714; }
+        #pricing-close { position: absolute; top: 16px; right: 20px; background: none; border: none; color: #8a7968; font-size: 20px; cursor: pointer; }
+    </style>
 </head>
 <body>
 <div id="sidebar">
@@ -68,6 +92,7 @@
     </div>
     <div id="character-list"><h3>Rooms</h3></div>
     <div id="sidebar-footer">
+        <button id="subscribe-btn" onclick="openPricing()">✦ Subscribe</button>
         <button id="clear-btn" onclick="clearHistory()">Clear Room</button>
     </div>
 </div>
@@ -171,6 +196,57 @@ function setStreaming(v) { isStreaming=v; document.getElementById("send-btn").di
 function handleKey(e) { if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendMessage();} }
 function autoResize(el) { el.style.height="auto"; el.style.height=Math.min(el.scrollHeight,120)+"px"; }
 window.onload=init;
+</script>
+
+<div id="pricing-overlay" onclick="closePricingOutside(event)">
+    <div id="pricing-modal">
+        <button id="pricing-close" onclick="closePricing()">✕</button>
+        <h2>Choose Your Room</h2>
+        <p class="subtitle">First month €4.99 on any plan — then your chosen rate.</p>
+        <div class="pricing-cards">
+            <div class="pricing-card">
+                <h3>Basic</h3>
+                <div class="price">€9.99<span>/month</span></div>
+                <div class="intro">First month €4.99</div>
+                <ul>
+                    <li>3 companions of your choice</li>
+                    <li>50 messages per day</li>
+                    <li>Full character experience</li>
+                </ul>
+                <a href="https://buy.stripe.com/test_4gM8wQ2LkcUjd3qgRig3600" target="_blank">Start for €4.99</a>
+            </div>
+            <div class="pricing-card featured">
+                <div class="badge">MOST POPULAR</div>
+                <h3>Premium</h3>
+                <div class="price">€19.99<span>/month</span></div>
+                <div class="intro">First month €4.99</div>
+                <ul>
+                    <li>All 7 companions</li>
+                    <li>Unlimited messages</li>
+                    <li>Full character experience</li>
+                    <li>Priority response</li>
+                </ul>
+                <a href="https://buy.stripe.com/test_4gM8wQ2LkcUjd3qgRig3600" target="_blank">Start for €4.99</a>
+            </div>
+            <div class="pricing-card">
+                <h3>Annual</h3>
+                <div class="price">€179.99<span>/year</span></div>
+                <div class="intro">Save €60 vs monthly</div>
+                <ul>
+                    <li>All 7 companions</li>
+                    <li>Unlimited messages</li>
+                    <li>Best value</li>
+                    <li>2 months free</li>
+                </ul>
+                <a href="https://buy.stripe.com/test_4gM8wQ2LkcUjd3qgRig3600" target="_blank">Start for €4.99</a>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+function openPricing() { document.getElementById("pricing-overlay").classList.add("open"); }
+function closePricing() { document.getElementById("pricing-overlay").classList.remove("open"); }
+function closePricingOutside(e) { if(e.target.id === "pricing-overlay") closePricing(); }
 </script>
 </body>
 </html>
