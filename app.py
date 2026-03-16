@@ -1,5 +1,5 @@
 from dotenv import load_dotenv
-load_dotenv("/Users/garyb/Quiet-company/.env", override=True)
+load_dotenv(override=True)
 from flask import Flask, render_template, request, jsonify, Response, session, stream_with_context
 import os
 import json
