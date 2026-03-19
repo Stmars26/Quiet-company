@@ -48,6 +48,13 @@ def get_client():
 # Model selection — easily change across all characters
 MODEL = os.getenv("QC_MODEL", "claude-sonnet-4-20250514")
 
+# Stripe checkout URLs (set in environment for live vs test)
+STRIPE_URLS = {
+    "basic":   os.getenv("STRIPE_BASIC_URL", "https://buy.stripe.com/test_4gM8wQ2LkcUjd3qgRig3600"),
+    "premium": os.getenv("STRIPE_PREMIUM_URL", "https://buy.stripe.com/test_4gM8wQ2LkcUjd3qgRig3600"),
+    "annual":  os.getenv("STRIPE_ANNUAL_URL", "https://buy.stripe.com/test_4gM8wQ2LkcUjd3qgRig3600"),
+}
+
 # Memory storage
 MEMORY_DIR = Path(os.getenv("QC_MEMORY_DIR", "memory_store"))
 MEMORY_DIR.mkdir(exist_ok=True)
@@ -689,6 +696,12 @@ def health():
         "model": MODEL,
         "api_connected": ANTHROPIC_API_KEY is not None
     })
+
+
+@app.route("/pricing", methods=["GET"])
+def pricing():
+    """Return Stripe checkout URLs."""
+    return jsonify(STRIPE_URLS)
 
 
 @app.route("/characters", methods=["GET"])

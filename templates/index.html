@@ -3,7 +3,33 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Quiet Company</title>
+    <title>Quiet Company — Conversation Without Complication</title>
+    <meta name="description" content="Quiet Company offers AI companions for meaningful conversation. Eight distinct personalities, each designed for a different emotional need. No therapy. No performance. Just steady, human presence.">
+    <meta name="keywords" content="AI companion, emotional support, conversation, wellbeing, mental health, chat companion">
+    <meta name="author" content="Quiet Company">
+    <meta name="theme-color" content="#0f0d0b">
+
+    <!-- Open Graph / Social Sharing -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://www.myquietcompany.com/">
+    <meta property="og:title" content="Quiet Company — Conversation Without Complication">
+    <meta property="og:description" content="Eight AI companions, each designed for a different emotional need. No therapy. No performance. Just steady, human presence.">
+    <meta property="og:image" content="https://www.myquietcompany.com/static/images/og-image.png">
+    <meta property="og:site_name" content="Quiet Company">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Quiet Company — Conversation Without Complication">
+    <meta name="twitter:description" content="Eight AI companions, each designed for a different emotional need. Steady presence, not performance.">
+    <meta name="twitter:image" content="https://www.myquietcompany.com/static/images/og-image.png">
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+
+    <!-- Canonical -->
+    <link rel="canonical" href="https://www.myquietcompany.com/">
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
     <style>
@@ -656,9 +682,118 @@
             max-width: 320px;
             line-height: 1.6;
         }
+
+        /* ── Welcome Overlay (First Visit) ── */
+        #welcome-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: var(--bg-deep);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            text-align: center;
+            padding: 40px;
+        }
+
+        #welcome-overlay.show { display: flex; }
+
+        #welcome-overlay h1 {
+            font-family: var(--serif);
+            font-size: 36px;
+            font-weight: 500;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            color: var(--gold);
+            margin-bottom: 12px;
+            opacity: 0;
+            animation: welcomeFade 0.8s ease 0.3s forwards;
+        }
+
+        #welcome-overlay .welcome-sub {
+            font-size: 15px;
+            color: var(--text-muted);
+            font-style: italic;
+            margin-bottom: 40px;
+            opacity: 0;
+            animation: welcomeFade 0.8s ease 0.6s forwards;
+        }
+
+        #welcome-overlay .welcome-desc {
+            font-family: var(--serif);
+            font-size: 17px;
+            color: var(--text-secondary);
+            max-width: 500px;
+            line-height: 1.8;
+            margin-bottom: 48px;
+            opacity: 0;
+            animation: welcomeFade 0.8s ease 0.9s forwards;
+        }
+
+        #welcome-overlay .welcome-enter {
+            background: linear-gradient(135deg, var(--gold), #a67c52);
+            color: var(--bg-deep);
+            border: none;
+            padding: 14px 40px;
+            font-family: var(--sans);
+            font-size: 13px;
+            font-weight: 500;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            border-radius: var(--radius);
+            cursor: pointer;
+            transition: all var(--transition);
+            opacity: 0;
+            animation: welcomeFade 0.8s ease 1.2s forwards;
+        }
+
+        #welcome-overlay .welcome-enter:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 20px rgba(201, 169, 110, 0.2);
+        }
+
+        #welcome-overlay .welcome-line {
+            width: 60px;
+            height: 1px;
+            background: var(--border-medium);
+            margin: 0 auto 40px;
+            opacity: 0;
+            animation: welcomeFade 0.8s ease 0.5s forwards;
+        }
+
+        @keyframes welcomeFade {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ── Better small mobile ── */
+        @media (max-width: 480px) {
+            #header-name { font-size: 18px; }
+            #header-tagline { display: none; }
+            .msg-bubble { padding: 11px 14px; font-size: 14px; }
+            .companion-bubble { font-size: 14.5px; }
+            #user-input { font-size: 14px; padding: 11px 14px; }
+            #send-btn { padding: 11px 16px; font-size: 10px; }
+            #welcome-overlay h1 { font-size: 26px; }
+            #welcome-overlay .welcome-desc { font-size: 15px; }
+        }
     </style>
 </head>
 <body>
+
+<!-- Welcome Overlay -->
+<div id="welcome-overlay">
+    <h1>Quiet Company</h1>
+    <div class="welcome-line"></div>
+    <div class="welcome-sub">Conversation without complication.</div>
+    <div class="welcome-desc">
+        Eight companions, each with their own presence and perspective.
+        No scripts. No performance. Just a room, a voice, and space to be heard.
+    </div>
+    <button class="welcome-enter" onclick="enterApp()">Enter</button>
+</div>
 
 <button id="mobile-toggle" onclick="toggleSidebar()">&#9776;</button>
 <div id="mobile-overlay" onclick="toggleSidebar()"></div>
@@ -709,7 +844,7 @@
                     <li>50 messages per day</li>
                     <li>Full character experience</li>
                 </ul>
-                <a href="https://buy.stripe.com/test_4gM8wQ2LkcUjd3qgRig3600" target="_blank">Start for &euro;4.99</a>
+                <a id="stripe-basic" href="#" target="_blank">Start for &euro;4.99</a>
             </div>
             <div class="pricing-card featured">
                 <div class="badge">MOST POPULAR</div>
@@ -722,7 +857,7 @@
                     <li>Full character experience</li>
                     <li>Priority response</li>
                 </ul>
-                <a href="https://buy.stripe.com/test_4gM8wQ2LkcUjd3qgRig3600" target="_blank">Start for &euro;4.99</a>
+                <a id="stripe-premium" href="#" target="_blank">Start for &euro;4.99</a>
             </div>
             <div class="pricing-card">
                 <h3>Annual</h3>
@@ -734,7 +869,7 @@
                     <li>Best value</li>
                     <li>2 months free</li>
                 </ul>
-                <a href="https://buy.stripe.com/test_4gM8wQ2LkcUjd3qgRig3600" target="_blank">Start for &euro;4.99</a>
+                <a id="stripe-annual" href="#" target="_blank">Start for &euro;4.99</a>
             </div>
         </div>
     </div>
@@ -761,6 +896,17 @@ async function init() {
     }
     buildSidebar();
     selectChar("claire");
+    loadPricing();
+}
+
+async function loadPricing() {
+    try {
+        const res = await fetch("/pricing");
+        const urls = await res.json();
+        if (urls.basic) document.getElementById("stripe-basic").href = urls.basic;
+        if (urls.premium) document.getElementById("stripe-premium").href = urls.premium;
+        if (urls.annual) document.getElementById("stripe-annual").href = urls.annual;
+    } catch {}
 }
 
 function imgUrl(f) { return `/static/images/${f}`; }
@@ -954,7 +1100,32 @@ function openPricing() { document.getElementById("pricing-overlay").classList.ad
 function closePricing() { document.getElementById("pricing-overlay").classList.remove("open"); }
 function closePricingOutside(e) { if (e.target.id === "pricing-overlay") closePricing(); }
 
-window.onload = init;
+// Welcome overlay
+function enterApp() {
+    const overlay = document.getElementById("welcome-overlay");
+    overlay.style.opacity = "0";
+    overlay.style.transition = "opacity 0.5s ease";
+    setTimeout(() => {
+        overlay.classList.remove("show");
+        overlay.style.display = "none";
+        try { sessionStorage.setItem("qc_entered", "1"); } catch(e) {}
+    }, 500);
+}
+
+function checkWelcome() {
+    try {
+        if (!sessionStorage.getItem("qc_entered")) {
+            document.getElementById("welcome-overlay").classList.add("show");
+        }
+    } catch(e) {
+        // sessionStorage unavailable, skip welcome
+    }
+}
+
+window.onload = function() {
+    checkWelcome();
+    init();
+};
 </script>
 </body>
 </html>
