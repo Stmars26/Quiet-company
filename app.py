@@ -50,9 +50,9 @@ MODEL = os.getenv("QC_MODEL", "claude-sonnet-4-20250514")
 
 # Stripe checkout URLs (set in environment for live vs test)
 STRIPE_URLS = {
-    "basic":   os.getenv("STRIPE_BASIC_URL", "https://buy.stripe.com/test_4gM8wQ2LkcUjd3qgRig3600"),
-    "premium": os.getenv("STRIPE_PREMIUM_URL", "https://buy.stripe.com/test_4gM8wQ2LkcUjd3qgRig3600"),
-    "annual":  os.getenv("STRIPE_ANNUAL_URL", "https://buy.stripe.com/test_4gM8wQ2LkcUjd3qgRig3600"),
+    "basic":   os.getenv("STRIPE_BASIC_URL", "https://buy.stripe.com/14A3cw82g5HkdSf21L53O03"),
+    "premium": os.getenv("STRIPE_PREMIUM_URL", "https://buy.stripe.com/eVq28s3M05HkbK7eOx53O04"),
+    "annual":  os.getenv("STRIPE_ANNUAL_URL", "https://buy.stripe.com/aFa5kE6Ycb1EcOb0XH53O05"),
 }
 
 # Memory storage
