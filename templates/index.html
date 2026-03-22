@@ -25,7 +25,7 @@
 
     <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
-    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+    <link rel="apple-touch-icon" href="/static/favicon.svg">
 
     <!-- Canonical -->
     <link rel="canonical" href="https://www.myquietcompany.com/">
@@ -400,6 +400,42 @@
 
         @keyframes blink { 50% { opacity: 0; } }
 
+        /* Waiting-for-first-token dots */
+        .typing-dots {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            min-height: 24px;
+            padding: 16px 18px !important;
+        }
+
+        .typing-dots::after { content: none; }
+
+        .typing-dots .dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--text-muted);
+            animation: dotPulse 1.4s ease-in-out infinite;
+        }
+
+        .typing-dots .dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dots .dot:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes dotPulse {
+            0%, 60%, 100% { opacity: 0.25; transform: scale(0.85); }
+            30% { opacity: 1; transform: scale(1); }
+        }
+
+        /* Paragraph spacing in companion bubbles */
+        .companion-bubble p {
+            margin: 0;
+        }
+
+        .companion-bubble p + p {
+            margin-top: 0.75em;
+        }
+
         .intro-bubble {
             background: transparent;
             border: 1px dashed var(--border-subtle);
@@ -768,6 +804,148 @@
             to { opacity: 1; transform: translateY(0); }
         }
 
+        /* ── Access Code Overlay ── */
+        #auth-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: var(--bg-deep);
+            z-index: 1500;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            text-align: center;
+            padding: 40px;
+        }
+
+        #auth-overlay.show { display: flex; }
+
+        #auth-overlay h1 {
+            font-family: var(--serif);
+            font-size: 30px;
+            font-weight: 500;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            color: var(--gold);
+            margin-bottom: 10px;
+            opacity: 0;
+            animation: welcomeFade 0.7s ease 0.2s forwards;
+        }
+
+        #auth-overlay .auth-line {
+            width: 50px; height: 1px;
+            background: var(--border-medium);
+            margin: 0 auto 28px;
+            opacity: 0;
+            animation: welcomeFade 0.7s ease 0.4s forwards;
+        }
+
+        #auth-overlay .auth-sub {
+            font-size: 13px;
+            color: var(--text-muted);
+            font-style: italic;
+            margin-bottom: 36px;
+            opacity: 0;
+            animation: welcomeFade 0.7s ease 0.5s forwards;
+        }
+
+        .auth-input-wrap {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-bottom: 12px;
+            opacity: 0;
+            animation: welcomeFade 0.7s ease 0.8s forwards;
+            width: 100%;
+            max-width: 400px;
+        }
+
+        #access-code-input {
+            flex: 1;
+            background: var(--bg-surface);
+            border: 1px solid var(--border-medium);
+            border-radius: var(--radius);
+            padding: 13px 18px;
+            color: var(--text-primary);
+            font-family: var(--sans);
+            font-size: 13px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            outline: none;
+            transition: border-color var(--transition);
+            min-width: 0;
+        }
+
+        #access-code-input::placeholder {
+            letter-spacing: 0.5px;
+            text-transform: none;
+            color: var(--text-faint);
+        }
+
+        #access-code-input:focus { border-color: var(--gold); }
+
+        .auth-submit {
+            background: linear-gradient(135deg, var(--gold), #a67c52);
+            color: var(--bg-deep);
+            border: none;
+            border-radius: var(--radius);
+            padding: 13px 26px;
+            font-family: var(--sans);
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all var(--transition);
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        .auth-submit:hover:not(:disabled) { opacity: 0.9; transform: translateY(-1px); }
+        .auth-submit:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+
+        .auth-error {
+            color: #b87070;
+            font-size: 11px;
+            min-height: 16px;
+            margin-bottom: 24px;
+            letter-spacing: 0.3px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .auth-error.visible { opacity: 1; }
+
+        .auth-footer {
+            font-size: 11px;
+            color: var(--text-faint);
+            opacity: 0;
+            animation: welcomeFade 0.7s ease 1.1s forwards;
+            margin-top: 8px;
+        }
+
+        .auth-footer a { color: var(--text-muted); text-decoration: underline; text-underline-offset: 2px; }
+        .auth-footer a:hover { color: var(--gold); }
+
+        /* Logout button */
+        #logout-btn {
+            background: none;
+            border: 1px solid var(--border-subtle);
+            color: var(--text-faint);
+            padding: 7px 12px;
+            font-size: 10px;
+            font-family: var(--sans);
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            cursor: pointer;
+            width: 100%;
+            border-radius: var(--radius);
+            transition: all var(--transition);
+        }
+
+        #logout-btn:hover { border-color: #a06060; color: #b07070; }
+
         /* ── Better small mobile ── */
         @media (max-width: 480px) {
             #header-name { font-size: 18px; }
@@ -778,6 +956,8 @@
             #send-btn { padding: 11px 16px; font-size: 10px; }
             #welcome-overlay h1 { font-size: 26px; }
             #welcome-overlay .welcome-desc { font-size: 15px; }
+            .auth-input-wrap { flex-direction: column; }
+            .auth-submit { width: 100%; }
         }
     </style>
 </head>
@@ -795,6 +975,24 @@
     <button class="welcome-enter" onclick="enterApp()">Enter</button>
 </div>
 
+<!-- Access Code Overlay -->
+<div id="auth-overlay">
+    <h1>Quiet Company</h1>
+    <div class="auth-line"></div>
+    <div class="auth-sub">Private access. Enter your code to continue.</div>
+    <div class="auth-input-wrap">
+        <input id="access-code-input" type="text" placeholder="Your access code"
+               autocomplete="off" autocapitalize="characters" spellcheck="false"
+               oninput="clearAuthError()" onkeydown="handleAuthKey(event)">
+        <button class="auth-submit" id="auth-btn" onclick="submitAccessCode()">Enter</button>
+    </div>
+    <div id="auth-error" class="auth-error"></div>
+    <div class="auth-footer">
+        Don&rsquo;t have a code? <a href="https://www.myquietcompany.com/#subscribe" target="_blank">Get access</a>
+        <br><a href="mailto:hello@myquietcompany.com" style="font-size:11px;opacity:0.6">hello@myquietcompany.com</a>
+    </div>
+</div>
+
 <button id="mobile-toggle" onclick="toggleSidebar()">&#9776;</button>
 <div id="mobile-overlay" onclick="toggleSidebar()"></div>
 
@@ -807,6 +1005,8 @@
     <div id="sidebar-footer">
         <button id="subscribe-btn" onclick="openPricing()">Subscribe</button>
         <button id="clear-btn" onclick="clearHistory()">Clear Room</button>
+        <button id="logout-btn" onclick="doLogout()" style="display:none">Sign Out</button>
+        <a href="mailto:hello@myquietcompany.com" style="display:block;text-align:center;font-size:10px;color:var(--text-muted);letter-spacing:0.5px;margin-top:4px;text-decoration:none;opacity:0.7;transition:opacity 0.2s" onmouseover="this.style.opacity='1';this.style.color='var(--gold)'" onmouseout="this.style.opacity='0.7';this.style.color='var(--text-muted)'">hello@myquietcompany.com</a>
     </div>
 </div>
 
@@ -869,7 +1069,7 @@
                     <li>Best value</li>
                     <li>2 months free</li>
                 </ul>
-                <a id="stripe-annual" href="#" target="_blank">Start for &euro;4.99</a>
+                <a id="stripe-annual" href="#" target="_blank">Get Annual Plan</a>
             </div>
         </div>
     </div>
@@ -877,6 +1077,83 @@
 
 <script>
 let currentChar = "claire", isStreaming = false, characters = {};
+
+// ── Safe HTML renderer for companion bubbles ──────────────────────────────
+// Converts plain text (with \n) to paragraphs/line-breaks safely.
+function renderBubble(el, text) {
+    // Escape HTML entities to prevent XSS
+    const esc = text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+
+    // Split on double newline → paragraphs; single newline → <br>
+    const paras = esc.split(/\n\n+/);
+    el.innerHTML = paras
+        .map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`)
+        .join('');
+}
+
+// ── Character suggestion banner ───────────────────────────────────────────
+let suggestionTimeout = null;
+
+async function checkSignalAndSuggest(message) {
+    try {
+        const res = await fetch('/signal', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({message})
+        });
+        const data = await res.json();
+        if (data.suggested_character && data.suggested_character !== currentChar && data.signal !== 'neutral') {
+            showSuggestion(data.suggested_character, data.suggested_name, data.signal);
+        }
+    } catch {}
+}
+
+function showSuggestion(charKey, charName, signal) {
+    // Don't show if already on that character
+    removeSuggestion();
+    const c = characters[charKey];
+    if (!c) return;
+
+    const banner = document.createElement('div');
+    banner.id = 'char-suggestion';
+    banner.style.cssText = `
+        position: fixed; bottom: 90px; right: 24px;
+        background: var(--bg-elevated); border: 1px solid var(--border-medium);
+        border-left: 3px solid ${c.color}; border-radius: 8px;
+        padding: 10px 14px; max-width: 260px; z-index: 50;
+        animation: fadeUp 0.3s ease; font-size: 12px;
+    `;
+    banner.innerHTML = `
+        <div style="color:var(--text-muted);font-size:10px;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">Switch Room?</div>
+        <div style="color:var(--text-secondary);margin-bottom:8px;font-family:var(--serif);font-size:13px">
+            <strong style="color:${c.color}">${charName}</strong> might hold this better.
+        </div>
+        <div style="display:flex;gap:8px">
+            <button onclick="selectChar('${charKey}');removeSuggestion();" style="
+                background:${c.color};color:#0f0d0b;border:none;border-radius:4px;
+                padding:5px 10px;font-size:10px;font-weight:600;cursor:pointer;letter-spacing:0.5px;
+            ">Switch to ${charName}</button>
+            <button onclick="removeSuggestion()" style="
+                background:none;border:1px solid var(--border-subtle);color:var(--text-muted);
+                border-radius:4px;padding:5px 10px;font-size:10px;cursor:pointer;
+            ">Stay here</button>
+        </div>
+    `;
+    document.body.appendChild(banner);
+
+    // Auto-dismiss after 8 seconds
+    suggestionTimeout = setTimeout(removeSuggestion, 8000);
+}
+
+function removeSuggestion() {
+    if (suggestionTimeout) { clearTimeout(suggestionTimeout); suggestionTimeout = null; }
+    const el = document.getElementById('char-suggestion');
+    if (el) el.remove();
+}
 
 async function init() {
     try {
@@ -957,11 +1234,15 @@ async function loadHistory(key) {
     box.innerHTML = "";
     try {
         const res = await fetch(`/history?character=${key}`);
+        if (res.status === 401) { showAuthOverlay(); return; }
         const history = await res.json();
         if (!history || !history.length) { showIntro(key); return; }
         history.forEach(m => {
             if (m.role === "user") addUserBubble(m.content);
-            if (m.role === "assistant") addCompanionBubble(key, m.content);
+            if (m.role === "assistant") {
+                const b = addCompanionBubble(key, "");
+                renderBubble(b, m.content);
+            }
         });
         scrollBottom();
     } catch { showIntro(key); }
@@ -988,10 +1269,17 @@ async function sendMessage() {
     input.value = "";
     autoResize(input);
     setStreaming(true);
+    removeSuggestion();
 
     addUserBubble(msg);
+
+    // Add typing-dots placeholder (three animated dots before first token)
     const bubble = addCompanionBubble(currentChar, "");
-    bubble.classList.add("typing-cursor");
+    bubble.classList.add("typing-dots");
+    bubble.innerHTML = '<span class="dot"></span><span class="dot"></span><span class="dot"></span>';
+
+    let bubbleText = "";
+    let firstToken = true;
 
     try {
         const res = await fetch("/chat", {
@@ -999,6 +1287,13 @@ async function sendMessage() {
             headers: {"Content-Type": "application/json"},
             body: JSON.stringify({message: msg, character: currentChar})
         });
+        if (res.status === 401) {
+            bubble.classList.remove("typing-dots");
+            bubble.textContent = "(Session expired — please sign in again.)";
+            setStreaming(false);
+            showAuthOverlay();
+            return;
+        }
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let buf = "";
@@ -1012,16 +1307,33 @@ async function sendMessage() {
                 if (!line.startsWith("data: ")) continue;
                 try {
                     const p = JSON.parse(line.slice(6));
-                    if (p.token) { bubble.textContent += p.token; scrollBottom(); }
-                    if (p.error) bubble.textContent = "(Something went wrong \u2014 please try again.)";
+                    if (p.token) {
+                        if (firstToken) {
+                            // Switch from dots to streaming text mode
+                            bubble.classList.remove("typing-dots");
+                            bubble.classList.add("typing-cursor");
+                            firstToken = false;
+                        }
+                        bubbleText += p.token;
+                        renderBubble(bubble, bubbleText);
+                        scrollBottom();
+                    }
+                    if (p.error) {
+                        bubble.classList.remove("typing-dots");
+                        bubble.textContent = "(Something went wrong \u2014 please try again.)";
+                    }
                 } catch {}
             }
         }
     } catch {
+        bubble.classList.remove("typing-dots");
         bubble.textContent = "(Connection issue \u2014 please try again.)";
     } finally {
         bubble.classList.remove("typing-cursor");
+        bubble.classList.remove("typing-dots");
         setStreaming(false);
+        // Check if signal suggests a different character (non-blocking, after reply)
+        checkSignalAndSuggest(msg);
     }
 }
 
@@ -1100,7 +1412,7 @@ function openPricing() { document.getElementById("pricing-overlay").classList.ad
 function closePricing() { document.getElementById("pricing-overlay").classList.remove("open"); }
 function closePricingOutside(e) { if (e.target.id === "pricing-overlay") closePricing(); }
 
-// Welcome overlay
+// ── Welcome overlay ───────────────────────────────────────────────────────────
 function enterApp() {
     const overlay = document.getElementById("welcome-overlay");
     overlay.style.opacity = "0";
@@ -1117,14 +1429,107 @@ function checkWelcome() {
         if (!sessionStorage.getItem("qc_entered")) {
             document.getElementById("welcome-overlay").classList.add("show");
         }
-    } catch(e) {
-        // sessionStorage unavailable, skip welcome
+    } catch(e) {}
+}
+
+// ── Subscriber Auth ───────────────────────────────────────────────────────────
+function showAuthOverlay() {
+    document.getElementById("auth-overlay").classList.add("show");
+    // Don't show welcome if auth is needed
+    const wo = document.getElementById("welcome-overlay");
+    wo.classList.remove("show");
+    wo.style.display = "none";
+    setTimeout(() => document.getElementById("access-code-input").focus(), 800);
+}
+
+function hideAuthOverlay() {
+    const el = document.getElementById("auth-overlay");
+    el.style.opacity = "0";
+    el.style.transition = "opacity 0.4s ease";
+    setTimeout(() => {
+        el.classList.remove("show");
+        el.style.opacity = "";
+        el.style.transition = "";
+    }, 400);
+}
+
+function handleAuthKey(e) {
+    if (e.key === "Enter") submitAccessCode();
+}
+
+function clearAuthError() {
+    const el = document.getElementById("auth-error");
+    el.textContent = "";
+    el.classList.remove("visible");
+}
+
+async function submitAccessCode() {
+    const input = document.getElementById("access-code-input");
+    const btn   = document.getElementById("auth-btn");
+    const code  = input.value.trim();
+    if (!code) return;
+
+    btn.disabled = true;
+    btn.textContent = "...";
+    clearAuthError();
+
+    try {
+        const res = await fetch("/login", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({code})
+        });
+        const data = await res.json();
+        if (data.ok) {
+            hideAuthOverlay();
+            document.getElementById("logout-btn").style.display = "block";
+            checkWelcome();
+            init();
+        } else {
+            const err = document.getElementById("auth-error");
+            err.textContent = data.error || "Invalid code. Please try again.";
+            err.classList.add("visible");
+            input.select();
+        }
+    } catch {
+        const err = document.getElementById("auth-error");
+        err.textContent = "Connection issue — please try again.";
+        err.classList.add("visible");
+    } finally {
+        btn.disabled = false;
+        btn.textContent = "Enter";
     }
 }
 
-window.onload = function() {
-    checkWelcome();
-    init();
+async function doLogout() {
+    try { await fetch("/logout", {method: "POST"}); } catch {}
+    location.reload();
+}
+
+async function checkAuth() {
+    try {
+        const res  = await fetch("/auth-status");
+        const data = await res.json();
+        if (!data.authenticated) {
+            showAuthOverlay();
+            return false;
+        }
+        if (data.auth_enabled) {
+            document.getElementById("logout-btn").style.display = "block";
+        }
+        return true;
+    } catch {
+        // If the status check fails, allow access (fail open)
+        return true;
+    }
+}
+
+window.onload = async function() {
+    const authed = await checkAuth();
+    if (authed) {
+        checkWelcome();
+        init();
+    }
 };
 </script>
 </body>

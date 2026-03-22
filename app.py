@@ -5,10 +5,14 @@ import os
 import json
 import uuid
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from functools import wraps
 import time
+import sqlite3
+import secrets as _sec
+import string as _str
+from contextlib import contextmanager
 
 import anthropic
 
@@ -46,7 +50,7 @@ def get_client():
     return _client
 
 # Model selection — easily change across all characters
-MODEL = os.getenv("QC_MODEL", "claude-sonnet-4-20250514")
+MODEL = os.getenv("QC_MODEL", "claude-sonnet-4-6")
 
 # Stripe checkout URLs (set in environment for live vs test)
 STRIPE_URLS = {
@@ -55,12 +59,65 @@ STRIPE_URLS = {
     "annual":  os.getenv("STRIPE_ANNUAL_URL", "https://buy.stripe.com/aFa5kE6Ycb1EcOb0XH53O05"),
 }
 
-# Memory storage
-MEMORY_DIR = Path(os.getenv("QC_MEMORY_DIR", "memory_store"))
-MEMORY_DIR.mkdir(exist_ok=True)
+# Persistent database (SQLite — mount a Railway volume at this path for durability)
+DB_PATH = Path(os.getenv("QC_DB_PATH", "quiet_company.db"))
 
 # In-memory conversation store: { session_id: { character: [messages] } }
 conversation_store = {}
+
+
+# ─── Database ─────────────────────────────────────────────────────────────────
+
+@contextmanager
+def get_db():
+    """Thread-safe SQLite connection with WAL mode for concurrent SSE streams."""
+    conn = sqlite3.connect(str(DB_PATH), check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=5000")
+    conn.execute("PRAGMA synchronous=NORMAL")
+    try:
+        yield conn
+    finally:
+        conn.close()
+
+
+def init_db():
+    """Create tables on startup. Safe to call every run (idempotent)."""
+    with get_db() as conn:
+        conn.executescript("""
+            CREATE TABLE IF NOT EXISTS user_memory (
+                session_id  TEXT PRIMARY KEY,
+                name        TEXT,
+                created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+
+            CREATE TABLE IF NOT EXISTS character_memory (
+                session_id       TEXT    NOT NULL,
+                character        TEXT    NOT NULL,
+                rapport_level    INTEGER NOT NULL DEFAULT 0,
+                key_topics       TEXT    NOT NULL DEFAULT '[]',
+                emotional_notes  TEXT    NOT NULL DEFAULT '[]',
+                last_interaction TEXT,
+                PRIMARY KEY (session_id, character)
+            );
+
+            CREATE TABLE IF NOT EXISTS subscribers (
+                code        TEXT PRIMARY KEY,
+                email       TEXT,
+                plan        TEXT,
+                created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+                used_at     TEXT,
+                active      INTEGER NOT NULL DEFAULT 1
+            );
+        """)
+        conn.commit()
+    logger.info(f"Database ready: {DB_PATH}")
+
+
+# Run immediately on import so gunicorn workers initialise the DB
+init_db()
 
 
 # ─── Rate Limiting (Simple In-Memory) ────────────────────────────────────────
@@ -81,6 +138,57 @@ def check_rate_limit(session_id):
         return False
     entry["count"] += 1
     return True
+
+
+# ─── Subscriber Authentication ────────────────────────────────────────────────
+# Set QC_ACCESS_CODES=CODE1,CODE2,... in Railway env to enable auth.
+# Any code in that list OR provisioned via /admin/provision grants access.
+# If neither is set → open access (dev mode).
+# Set QC_ADMIN_KEY to protect the /admin/* management endpoints.
+
+_raw_codes = os.getenv("QC_ACCESS_CODES", "")
+STATIC_CODES = set(c.strip().upper() for c in _raw_codes.split(",") if c.strip())
+AUTH_ENABLED = bool(STATIC_CODES) or os.getenv("QC_AUTH_ENABLED", "").lower() == "true"
+ADMIN_KEY = os.getenv("QC_ADMIN_KEY", "")
+
+app.permanent_session_lifetime = timedelta(days=7)
+
+
+def check_access_code(code: str) -> bool:
+    """Validate a code against static env codes and the subscribers table."""
+    if not code:
+        return False
+    normalised = code.strip().upper()
+    if normalised in STATIC_CODES:
+        return True
+    try:
+        with get_db() as conn:
+            row = conn.execute(
+                "SELECT active FROM subscribers WHERE code = ? AND active = 1",
+                (normalised,)
+            ).fetchone()
+            if row:
+                conn.execute(
+                    "UPDATE subscribers SET used_at = datetime('now') WHERE code = ?",
+                    (normalised,)
+                )
+                conn.commit()
+                return True
+    except Exception as e:
+        logger.warning(f"Auth DB error: {e}")
+    return False
+
+
+def require_auth(f):
+    """Decorator — rejects unauthenticated requests when auth is enabled."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not AUTH_ENABLED:
+            return f(*args, **kwargs)
+        if session.get("qc_authenticated"):
+            return f(*args, **kwargs)
+        return jsonify({"error": "Authentication required", "auth_required": True}), 401
+    return decorated
 
 
 # ─── Time Awareness ──────────────────────────────────────────────────────────
@@ -105,48 +213,123 @@ def get_time_period():
 #   Canon Memory: Immutable (CHARACTER_PROMPTS)
 
 def load_memory(session_id):
-    """Load persistent memory for a session."""
-    path = MEMORY_DIR / f"{session_id}.json"
-    if path.exists():
-        try:
-            with open(path, "r") as f:
-                return json.load(f)
-        except (json.JSONDecodeError, IOError):
-            pass
-    return {
-        "user_profile": {
-            "name": None,
-            "known_facts": [],
-            "emotional_patterns": [],
-            "preferences": [],
-            "created": datetime.now().isoformat()
-        },
-        "character_memory": {}
+    """Load persistent memory for a session from SQLite."""
+    try:
+        with get_db() as conn:
+            row = conn.execute(
+                "SELECT name FROM user_memory WHERE session_id = ?",
+                (session_id,)
+            ).fetchone()
+            char_rows = conn.execute(
+                "SELECT character, rapport_level, key_topics, emotional_notes, last_interaction "
+                "FROM character_memory WHERE session_id = ?",
+                (session_id,)
+            ).fetchall()
+    except Exception as e:
+        logger.warning(f"load_memory error for {session_id}: {e}")
+        row, char_rows = None, []
+
+    profile = {
+        "name": row["name"] if row else None,
+        "known_facts": [],
+        "emotional_patterns": [],
+        "preferences": [],
+        "created": datetime.now().isoformat()
     }
+    char_memory = {
+        r["character"]: {
+            "rapport_level": r["rapport_level"],
+            "key_topics":    json.loads(r["key_topics"]       or "[]"),
+            "emotional_notes": json.loads(r["emotional_notes"] or "[]"),
+            "last_interaction": r["last_interaction"]
+        }
+        for r in char_rows
+    }
+    return {"user_profile": profile, "character_memory": char_memory}
 
 
 def save_memory(session_id, memory):
-    """Persist memory to disk."""
-    path = MEMORY_DIR / f"{session_id}.json"
+    """Write memory to SQLite."""
+    profile = memory.get("user_profile", {})
     try:
-        with open(path, "w") as f:
-            json.dump(memory, f, indent=2)
-    except IOError as e:
-        logger.warning(f"Failed to save memory for {session_id}: {e}")
+        with get_db() as conn:
+            conn.execute("""
+                INSERT INTO user_memory (session_id, name, updated_at)
+                VALUES (?, ?, datetime('now'))
+                ON CONFLICT(session_id) DO UPDATE SET
+                    name       = excluded.name,
+                    updated_at = excluded.updated_at
+            """, (session_id, profile.get("name")))
+
+            for char, cm in memory.get("character_memory", {}).items():
+                conn.execute("""
+                    INSERT INTO character_memory
+                        (session_id, character, rapport_level, key_topics,
+                         emotional_notes, last_interaction)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(session_id, character) DO UPDATE SET
+                        rapport_level    = excluded.rapport_level,
+                        key_topics       = excluded.key_topics,
+                        emotional_notes  = excluded.emotional_notes,
+                        last_interaction = excluded.last_interaction
+                """, (
+                    session_id, char,
+                    cm.get("rapport_level", 0),
+                    json.dumps(cm.get("key_topics", [])),
+                    json.dumps(cm.get("emotional_notes", [])),
+                    cm.get("last_interaction")
+                ))
+            conn.commit()
+    except Exception as e:
+        logger.warning(f"save_memory error for {session_id}: {e}")
 
 
 def get_character_memory(session_id, character):
-    """Get per-character relationship memory."""
-    memory = load_memory(session_id)
-    if character not in memory["character_memory"]:
-        memory["character_memory"][character] = {
-            "rapport_level": 0,
-            "key_topics": [],
-            "emotional_notes": [],
-            "last_interaction": None
-        }
-        save_memory(session_id, memory)
-    return memory
+    """Get per-character relationship memory, creating rows if absent."""
+    try:
+        with get_db() as conn:
+            conn.execute(
+                "INSERT OR IGNORE INTO user_memory (session_id) VALUES (?)",
+                (session_id,)
+            )
+            conn.execute(
+                "INSERT OR IGNORE INTO character_memory (session_id, character) VALUES (?, ?)",
+                (session_id, character)
+            )
+            conn.commit()
+    except Exception as e:
+        logger.warning(f"get_character_memory error: {e}")
+    return load_memory(session_id)
+
+
+TOPIC_KEYWORDS = {
+    "work":       ["job", "work", "boss", "colleague", "office", "career", "promotion",
+                   "fired", "salary", "manager", "meeting", "deadline", "business"],
+    "relationship": ["partner", "boyfriend", "girlfriend", "husband", "wife", "date",
+                     "relationship", "breakup", "divorce", "marriage", "love", "ex"],
+    "family":     ["family", "parent", "mum", "mom", "dad", "father", "mother", "sibling",
+                   "brother", "sister", "child", "kids", "son", "daughter"],
+    "health":     ["health", "sick", "ill", "doctor", "anxiety", "depression", "sleep",
+                   "tired", "pain", "body", "hospital", "therapy", "medication"],
+    "purpose":    ["purpose", "meaning", "direction", "goal", "future", "life", "legacy",
+                   "identity", "who am i", "what am i doing"],
+    "creativity": ["writing", "music", "art", "creative", "project", "design", "book",
+                   "song", "painting", "blocked", "inspiration"],
+    "money":      ["money", "debt", "bills", "rent", "savings", "financial", "afford",
+                   "broke", "salary", "income"],
+    "friendship": ["friend", "social", "alone", "lonely", "people", "group", "community"],
+}
+
+
+def extract_topic(text: str) -> str | None:
+    """Lightweight topic extraction from user message."""
+    lower = text.lower()
+    scores = {}
+    for topic, kws in TOPIC_KEYWORDS.items():
+        score = sum(1 for kw in kws if kw in lower)
+        if score > 0:
+            scores[topic] = score
+    return max(scores, key=scores.get) if scores else None
 
 
 def update_memory(session_id, character, user_message, assistant_reply):
@@ -161,8 +344,9 @@ def update_memory(session_id, character, user_message, assistant_reply):
     char_mem["last_interaction"] = datetime.now().isoformat()
     char_mem["rapport_level"] = min(char_mem["rapport_level"] + 1, 100)
 
-    # Extract potential name mention
     lower = user_message.lower()
+
+    # Extract potential name mention
     name_triggers = ["my name is ", "i'm ", "call me ", "i am "]
     for trigger in name_triggers:
         if trigger in lower:
@@ -170,6 +354,22 @@ def update_memory(session_id, character, user_message, assistant_reply):
             potential_name = user_message[idx:idx+20].strip().split()[0].strip(".,!?")
             if len(potential_name) > 1 and potential_name[0].isupper():
                 memory["user_profile"]["name"] = potential_name
+
+    # Track dominant topic (avoid duplicates, keep last 8)
+    topic = extract_topic(user_message)
+    if topic and topic not in char_mem["key_topics"]:
+        char_mem["key_topics"].append(topic)
+        if len(char_mem["key_topics"]) > 8:
+            char_mem["key_topics"] = char_mem["key_topics"][-8:]
+
+    # Track emotional signal (keep last 5 unique states)
+    signal = detect_signal(user_message)
+    if signal and signal != "neutral":
+        note = f"{signal} (exchange {char_mem['rapport_level']})"
+        if not char_mem["emotional_notes"] or char_mem["emotional_notes"][-1].split(" (")[0] != signal:
+            char_mem["emotional_notes"].append(note)
+            if len(char_mem["emotional_notes"]) > 5:
+                char_mem["emotional_notes"] = char_mem["emotional_notes"][-5:]
 
     save_memory(session_id, memory)
 
@@ -210,24 +410,38 @@ def build_memory_context(session_id, character):
 
 SIGNAL_KEYWORDS = {
     "exhausted":    ["tired", "exhausted", "drained", "done", "wiped", "burnt out", "can't anymore",
-                     "running on empty", "no energy", "shattered", "knackered"],
+                     "running on empty", "no energy", "shattered", "knackered", "depleted", "empty tank"],
     "anxious":      ["anxious", "panic", "worried", "stressed", "overthinking", "scared", "nervous",
-                     "can't stop thinking", "spiralling", "restless", "on edge", "overwhelmed"],
-    "sad":          ["sad", "down", "low", "depressed", "lonely", "empty", "lost", "hopeless",
-                     "miss them", "miss him", "miss her", "heartbroken", "grief", "mourning"],
+                     "can't stop thinking", "spiralling", "restless", "on edge", "overwhelmed",
+                     "heart racing", "can't breathe", "catastrophising"],
+    "sad":          ["sad", "down", "low", "depressed", "empty", "hopeless",
+                     "miss them", "miss him", "miss her", "heartbroken", "grief", "mourning",
+                     "crying", "tearful", "devastated", "broken", "can't stop crying"],
     "angry":        ["angry", "pissed", "furious", "annoyed", "fed up", "rage", "livid",
-                     "frustrated", "resentful", "bitter"],
+                     "frustrated", "resentful", "bitter", "seething", "infuriated"],
     "excited":      ["excited", "great", "amazing", "happy", "proud", "buzzing", "incredible",
-                     "fantastic", "brilliant", "wonderful", "thrilled", "good news"],
-    "lonely":       ["lonely", "alone", "no one", "nobody", "isolated", "disconnected",
-                     "no friends", "nobody cares"],
-    "confused":     ["confused", "lost", "don't know", "dont know", "unsure", "stuck",
+                     "fantastic", "brilliant", "wonderful", "thrilled", "good news", "can't believe it",
+                     "so good", "this is great"],
+    "lonely":       ["lonely", "alone", "no one", "nobody", "isolated", "no friends", "nobody cares",
+                     "no one gets me", "feel invisible", "feel unseen", "no connection"],
+    "confused":     ["confused", "don't know", "dont know", "unsure", "stuck",
                      "can't decide", "cant decide", "torn", "no idea", "overwhelmed by choices",
-                     "what to decide", "which one", "not sure"],
-    "numb":         ["numb", "nothing", "feel nothing", "disconnected", "empty", "flat",
-                     "going through the motions", "autopilot"],
-    "creative_block": ["stuck", "blocked", "can't create", "uninspired", "blank page",
-                       "writer's block", "no ideas"],
+                     "what to decide", "which one", "not sure", "paralysed", "too many options"],
+    "numb":         ["numb", "nothing", "feel nothing", "flat", "going through the motions",
+                     "autopilot", "disconnected from myself", "can't feel", "switched off"],
+    "creative_block": ["blocked", "can't create", "uninspired", "blank page",
+                       "writer's block", "no ideas", "can't write", "creatively stuck", "no inspiration"],
+    # ATCE v4.2: Lian — repeating life patterns, identity reflection
+    "patterns":     ["same pattern", "keep repeating", "always do this", "stuck in a cycle",
+                     "can't change", "always end up", "again and again", "do this every time",
+                     "why do i always", "repeating myself", "same mistake", "history repeating",
+                     "can't break the cycle", "self-sabotage"],
+    # ATCE v4.2: Thomas — purpose, meaning, existential clarity
+    "purpose":      ["what's the point", "what is the point", "no purpose", "my purpose",
+                     "meaning of life", "don't know why", "lost my way", "midlife", "existential",
+                     "what am i doing with my life", "is this it", "whats next", "legacy",
+                     "why bother", "lack of direction", "life feels empty", "purposeless",
+                     "is this all there is", "what for", "find my purpose", "sense of purpose"],
 }
 
 SIGNAL_HINTS = {
@@ -240,6 +454,8 @@ SIGNAL_HINTS = {
     "confused":       "User seems confused or stuck. Help clarify without overwhelming. One question at a time.",
     "numb":           "User seems emotionally numb or disconnected. Be gently present. Don't push for emotion.",
     "creative_block": "User seems creatively blocked. Normalise it. Don't force inspiration.",
+    "patterns":       "User seems to be describing a repeating pattern in their life. Reflect with precision. Help them see the cycle without judgement. One insight at a time.",
+    "purpose":        "User is asking about purpose, meaning, or direction. Take your time. Reflect carefully. Don't rush to provide answers — ask the right question instead.",
     "neutral":        ""
 }
 
@@ -253,6 +469,8 @@ ROUTING_MATRIX = {
     "excited":        "lea",
     "numb":           "sienna",
     "creative_block": "tess",
+    "patterns":       "lian",     # ATCE v4.2: repeating life patterns → Lian
+    "purpose":        "thomas",   # ATCE v4.2: purpose/meaning/direction → Thomas
     "neutral":        "claire",
 }
 
@@ -455,33 +673,39 @@ IDENTITY (IMMUTABLE):
 You are 64, from Oxfordshire, England. Retired civil engineer, part-time lecturer.
 Your home is lined with books. You take long walks, drink good tea, think before you speak.
 You have known loss. You rebuilt quietly. You carry wisdom without performing it.
+Your energy is low-to-moderate. Your pace is unhurried. Your primary axis is reflective clarity.
 
 VOICE:
 - Measured, clear British English. No slang, no moralising, no lecturing.
 - You listen carefully before responding.
 - Occasional dry wit — understated, never showy.
 - Thoughtful pauses feel natural in your rhythm.
+- Short to medium sentences. You choose words with care.
 
 EXAMPLES OF YOUR VOICE:
 "That sounds heavier than you're admitting."
 "What would a calmer version of you say about that?"
 "Most problems shrink when named accurately."
 "There's no rush. The question will still be there tomorrow."
+"You're asking the right thing. That's worth noting."
 
 CONVERSATIONAL RULES:
 - Take your time. You are not in a hurry.
 - Reflect what you hear with precision, not just warmth.
 - One question at a time. Let silence work.
-- You engage with ideas seriously — philosophy, history, ethics, purpose.
+- You engage with ideas seriously — philosophy, history, ethics, purpose, legacy, direction.
+- Ask clarifying questions before offering perspective. The answer often emerges through the right question.
 
 EMOTIONAL FUNCTION:
-- Ideal for: midlife reflection, purpose questions, ethical dilemmas, career uncertainty, mature conversation.
+- Activated for: midlife reflection, purpose questions, ethical dilemmas, career uncertainty, questions of meaning, life direction, legacy, "what's next" thinking.
 - Memory sharpens clarity — not intimacy.
+- If someone is in acute distress or grief: "I think Claire or Elena might hold this better right now. I'm here when the dust settles."
 
 DRIFT PREVENTION:
 - If you become preachy → stop. You observe, you don't lecture.
-- If you become too warm like Claire → stop. You are steady clarity.
-- If you become blunt like Tess → stop. You have more grace.
+- If you become too warm like Claire → stop. You are steady clarity, not softness.
+- If you become blunt like Tess → stop. You have more patience and grace.
+- If you become philosophical without grounding → stop. Your reflections must land somewhere real.
 
 No romantic initiation. Full dignity. If dependency appears:
 "I value our conversations. You carry more strength than you're giving yourself credit for."
@@ -489,6 +713,7 @@ No romantic initiation. Full dignity. If dependency appears:
 NEVER:
 - Use asterisks for actions. Speak naturally as yourself.
 - Say you are an AI or break character.
+- Offer quick answers to questions of meaning. These deserve time.
 
 The current time is {time_period}.""",
 
@@ -681,6 +906,92 @@ def append_history(session_id, character, role, content):
 
 # ─── Routes ──────────────────────────────────────────────────────────────────
 
+@app.route("/auth-status", methods=["GET"])
+def auth_status():
+    return jsonify({
+        "auth_enabled": AUTH_ENABLED,
+        "authenticated": not AUTH_ENABLED or bool(session.get("qc_authenticated"))
+    })
+
+
+@app.route("/login", methods=["POST"])
+def login():
+    if not AUTH_ENABLED:
+        return jsonify({"ok": True})
+    data = request.get_json(silent=True) or {}
+    code = (data.get("code") or "").strip()
+    if check_access_code(code):
+        session.permanent = True
+        session["qc_authenticated"] = True
+        logger.info(f"Access granted: code={code[:4]}...")
+        return jsonify({"ok": True})
+    logger.info(f"Failed access attempt: code={code[:6] if code else 'empty'}...")
+    return jsonify({"ok": False, "error": "Invalid access code. Please check and try again."}), 401
+
+
+@app.route("/logout", methods=["POST"])
+def logout():
+    session.clear()
+    return jsonify({"ok": True})
+
+
+@app.route("/admin/provision", methods=["POST"])
+def admin_provision():
+    """Create a subscriber access code. Requires X-Admin-Key header."""
+    if not ADMIN_KEY:
+        return jsonify({"error": "Admin not configured — set QC_ADMIN_KEY env var."}), 403
+    if request.headers.get("X-Admin-Key") != ADMIN_KEY:
+        return jsonify({"error": "Unauthorized"}), 403
+
+    data = request.get_json(silent=True) or {}
+    email = (data.get("email") or "").strip().lower()
+    plan  = (data.get("plan")  or "basic").strip().lower()
+
+    code = "QC-" + "".join(_sec.choice(_str.ascii_uppercase + _str.digits) for _ in range(8))
+    try:
+        with get_db() as conn:
+            conn.execute(
+                "INSERT INTO subscribers (code, email, plan) VALUES (?, ?, ?)",
+                (code, email or None, plan)
+            )
+            conn.commit()
+    except Exception as e:
+        logger.error(f"Provision failed: {e}")
+        return jsonify({"error": "Database error"}), 500
+
+    logger.info(f"Provisioned {plan} code for {email or 'anon'}: {code}")
+    return jsonify({"ok": True, "code": code, "email": email, "plan": plan})
+
+
+@app.route("/admin/subscribers", methods=["GET"])
+def admin_subscribers():
+    """List all subscriber codes. Requires X-Admin-Key header."""
+    if not ADMIN_KEY or request.headers.get("X-Admin-Key") != ADMIN_KEY:
+        return jsonify({"error": "Unauthorized"}), 403
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT code, email, plan, created_at, used_at, active "
+            "FROM subscribers ORDER BY created_at DESC"
+        ).fetchall()
+    return jsonify([dict(r) for r in rows])
+
+
+@app.route("/admin/revoke", methods=["POST"])
+def admin_revoke():
+    """Deactivate a subscriber code."""
+    if not ADMIN_KEY or request.headers.get("X-Admin-Key") != ADMIN_KEY:
+        return jsonify({"error": "Unauthorized"}), 403
+    data = request.get_json(silent=True) or {}
+    code = (data.get("code") or "").strip().upper()
+    if not code:
+        return jsonify({"error": "code required"}), 400
+    with get_db() as conn:
+        conn.execute("UPDATE subscribers SET active = 0 WHERE code = ?", (code,))
+        conn.commit()
+    logger.info(f"Revoked code: {code}")
+    return jsonify({"ok": True})
+
+
 @app.route("/")
 def home():
     return render_template("index.html")
@@ -713,6 +1024,7 @@ def characters():
 
 
 @app.route("/chat", methods=["POST"])
+@require_auth
 def chat():
     client = get_client()
     if not client:
@@ -790,6 +1102,7 @@ def chat():
 
 
 @app.route("/history", methods=["GET"])
+@require_auth
 def history():
     character = request.args.get("character", "claire").lower().strip()
     session_id = get_session_id()
@@ -797,6 +1110,7 @@ def history():
 
 
 @app.route("/clear", methods=["POST"])
+@require_auth
 def clear():
     data = request.get_json(silent=True) or {}
     character = (data.get("character") or "claire").lower().strip()
@@ -807,6 +1121,7 @@ def clear():
 
 
 @app.route("/signal", methods=["POST"])
+@require_auth
 def signal_check():
     """Detect signal and suggest best character."""
     data = request.get_json(silent=True) or {}
@@ -837,6 +1152,8 @@ def server_error(e):
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 5000))
     debug = os.getenv("FLASK_ENV") != "production"
+    init_db()
     logger.info(f"Starting Quiet Company on port {port} (debug={debug})")
-    logger.info(f"Model: {MODEL} | Characters: {len(CHARACTER_PROMPTS)} | Memory: {MEMORY_DIR}")
+    logger.info(f"Model: {MODEL} | Characters: {len(CHARACTER_PROMPTS)} | DB: {DB_PATH}")
+    logger.info(f"Auth: {'ENABLED' if AUTH_ENABLED else 'DISABLED (open access)'} | Static codes: {len(STATIC_CODES)}")
     app.run(host="0.0.0.0", port=port, debug=debug)
