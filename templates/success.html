@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome — Quiet Company</title>
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <script defer data-domain="myquietcompany.com" src="https://plausible.io/js/script.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-deep: #0f0d0b;
+            --bg-primary: #161412;
+            --bg-surface: #1c1916;
+            --bg-elevated: #222019;
+            --border-subtle: #2a2520;
+            --border-medium: #352f28;
+            --text-primary: #e8e0d4;
+            --text-secondary: #a09484;
+            --text-muted: #5a5248;
+            --gold: #c9a96e;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: var(--bg-deep);
+            color: var(--text-primary);
+            font-family: 'Inter', sans-serif;
+            font-weight: 300;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+        }
+
+        .card {
+            background: var(--bg-primary);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 56px 48px;
+            max-width: 520px;
+            width: 100%;
+            text-align: center;
+        }
+
+        .brand {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 13px;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            color: var(--gold);
+            margin-bottom: 32px;
+        }
+
+        h1 {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 32px;
+            font-weight: 400;
+            color: var(--text-primary);
+            margin-bottom: 12px;
+            line-height: 1.3;
+        }
+
+        .subtitle {
+            font-size: 14px;
+            color: var(--text-secondary);
+            line-height: 1.6;
+            margin-bottom: 36px;
+        }
+
+        .code-box {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-medium);
+            border-radius: 10px;
+            padding: 24px;
+            margin-bottom: 16px;
+        }
+
+        .code-label {
+            font-size: 11px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: 12px;
+        }
+
+        .code-value {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 28px;
+            font-weight: 600;
+            color: var(--gold);
+            letter-spacing: 3px;
+            user-select: all;
+            cursor: text;
+        }
+
+        .copy-btn {
+            background: transparent;
+            border: 1px solid var(--border-medium);
+            color: var(--text-secondary);
+            font-family: 'Inter', sans-serif;
+            font-size: 12px;
+            padding: 8px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-bottom: 32px;
+        }
+
+        .copy-btn:hover {
+            border-color: var(--gold);
+            color: var(--gold);
+        }
+
+        .copy-btn.copied {
+            border-color: var(--gold);
+            color: var(--gold);
+        }
+
+        .divider {
+            width: 48px;
+            height: 1px;
+            background: var(--border-medium);
+            margin: 0 auto 32px;
+        }
+
+        .instructions {
+            font-size: 13px;
+            color: var(--text-secondary);
+            line-height: 1.7;
+            margin-bottom: 36px;
+        }
+
+        .instructions ol {
+            list-style: none;
+            counter-reset: steps;
+            text-align: left;
+            padding: 0;
+        }
+
+        .instructions ol li {
+            counter-increment: steps;
+            padding: 6px 0;
+        }
+
+        .instructions ol li::before {
+            content: counter(steps) ".";
+            color: var(--gold);
+            font-weight: 500;
+            margin-right: 8px;
+        }
+
+        .enter-btn {
+            display: inline-block;
+            background: var(--gold);
+            color: var(--bg-deep);
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 16px;
+            font-weight: 600;
+            padding: 14px 48px;
+            border-radius: 8px;
+            text-decoration: none;
+            transition: all 0.2s;
+            letter-spacing: 0.5px;
+        }
+
+        .enter-btn:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+
+        /* Fallback state when code not ready yet */
+        .waiting { display: none; }
+        .waiting.show { display: block; }
+        .has-code .waiting { display: none; }
+
+        .waiting-msg {
+            font-size: 14px;
+            color: var(--text-secondary);
+            line-height: 1.7;
+            margin-bottom: 24px;
+        }
+
+        .spinner {
+            width: 24px;
+            height: 24px;
+            border: 2px solid var(--border-medium);
+            border-top-color: var(--gold);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .contact {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 24px;
+        }
+
+        .contact a {
+            color: var(--text-secondary);
+            text-decoration: underline;
+            text-underline-offset: 2px;
+        }
+
+        @media (max-width: 560px) {
+            .card { padding: 40px 28px; }
+            h1 { font-size: 26px; }
+            .code-value { font-size: 22px; letter-spacing: 2px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="card {% if code %}has-code{% endif %}">
+        <div class="brand">Quiet Company</div>
+
+        {% if code %}
+        <h1>Welcome in.</h1>
+        <p class="subtitle">Your {{ plan|default('subscription', true) }} is active. Here's your private access code.</p>
+
+        <div class="code-box">
+            <div class="code-label">Your Access Code</div>
+            <div class="code-value" id="access-code">{{ code }}</div>
+        </div>
+        <button class="copy-btn" onclick="copyCode()">Copy code</button>
+
+        <div class="divider"></div>
+
+        <div class="instructions">
+            <ol>
+                <li>Go to <strong>myquietcompany.com</strong></li>
+                <li>Enter your code when prompted</li>
+                <li>Choose a room and begin</li>
+            </ol>
+        </div>
+
+        <a href="https://www.myquietcompany.com/" class="enter-btn">Enter Quiet Company</a>
+
+        {% else %}
+        <h1>Thank you.</h1>
+        <p class="subtitle">Your payment has been received.</p>
+
+        <div class="spinner" id="spinner"></div>
+        <p class="waiting-msg" id="waiting-msg">Preparing your access code&hellip;</p>
+
+        <div id="code-area" style="display:none;">
+            <div class="code-box">
+                <div class="code-label">Your Access Code</div>
+                <div class="code-value" id="access-code-poll"></div>
+            </div>
+            <button class="copy-btn" onclick="copyCodePoll()">Copy code</button>
+            <div class="divider"></div>
+            <div class="instructions">
+                <ol>
+                    <li>Go to <strong>myquietcompany.com</strong></li>
+                    <li>Enter your code when prompted</li>
+                    <li>Choose a room and begin</li>
+                </ol>
+            </div>
+            <a href="https://www.myquietcompany.com/" class="enter-btn">Enter Quiet Company</a>
+        </div>
+
+        <p class="waiting-msg" id="fallback-msg" style="display:none;">
+            If your code doesn't appear within a minute, don't worry — it's on its way.<br>
+            Check your email or contact us below.
+        </p>
+        {% endif %}
+
+        <p class="contact">
+            Questions? <a href="mailto:hello@myquietcompany.com">hello@myquietcompany.com</a>
+        </p>
+    </div>
+
+    <script>
+    function copyCode() {
+        const code = document.getElementById('access-code').textContent;
+        navigator.clipboard.writeText(code).then(() => {
+            const btn = document.querySelector('.copy-btn');
+            btn.textContent = 'Copied';
+            btn.classList.add('copied');
+            setTimeout(() => { btn.textContent = 'Copy code'; btn.classList.remove('copied'); }, 2000);
+        });
+    }
+
+    function copyCodePoll() {
+        const code = document.getElementById('access-code-poll').textContent;
+        navigator.clipboard.writeText(code).then(() => {
+            const btn = document.querySelectorAll('.copy-btn')[0];
+            btn.textContent = 'Copied';
+            btn.classList.add('copied');
+            setTimeout(() => { btn.textContent = 'Copy code'; btn.classList.remove('copied'); }, 2000);
+        });
+    }
+
+    {% if not code and session_id %}
+    // Poll for the code if webhook hasn't fired yet
+    let attempts = 0;
+    const maxAttempts = 12;
+    const pollInterval = setInterval(async () => {
+        attempts++;
+        try {
+            const res = await fetch('/stripe/check-code?session_id={{ session_id }}');
+            const data = await res.json();
+            if (data.code) {
+                clearInterval(pollInterval);
+                document.getElementById('spinner').style.display = 'none';
+                document.getElementById('waiting-msg').style.display = 'none';
+                document.getElementById('access-code-poll').textContent = data.code;
+                document.getElementById('code-area').style.display = 'block';
+            } else if (attempts >= maxAttempts) {
+                clearInterval(pollInterval);
+                document.getElementById('spinner').style.display = 'none';
+                document.getElementById('waiting-msg').style.display = 'none';
+                document.getElementById('fallback-msg').style.display = 'block';
+            }
+        } catch(e) {
+            if (attempts >= maxAttempts) {
+                clearInterval(pollInterval);
+                document.getElementById('spinner').style.display = 'none';
+                document.getElementById('waiting-msg').style.display = 'none';
+                document.getElementById('fallback-msg').style.display = 'block';
+            }
+        }
+    }, 2500);
+    {% endif %}
+    </script>
+</body>
+</html>

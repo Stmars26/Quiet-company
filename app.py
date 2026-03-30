@@ -28,7 +28,11 @@ logger = logging.getLogger("quietcompany")
 # ─── App Setup ────────────────────────────────────────────────────────────────
 
 app = Flask(__name__)
-app.secret_key = os.getenv("FLASK_SECRET_KEY", "quiet-company-dev-key-change-in-production")
+_flask_key = os.getenv("FLASK_SECRET_KEY")
+if not _flask_key:
+    _flask_key = _sec.token_hex(32)
+    logger.warning("FLASK_SECRET_KEY not set — using random key (sessions will reset on restart)")
+app.secret_key = _flask_key
 app.config["SESSION_COOKIE_SECURE"] = os.getenv("FLASK_ENV") == "production"
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
@@ -62,8 +66,49 @@ STRIPE_URLS = {
 # Persistent database (SQLite — mount a Railway volume at this path for durability)
 DB_PATH = Path(os.getenv("QC_DB_PATH", "quiet_company.db"))
 
-# In-memory conversation store: { session_id: { character: [messages] } }
-conversation_store = {}
+# ─── Conversation Persistence (SQLite-backed) ────────────────────────────────
+
+def get_conversation(session_id: str, character: str) -> list:
+    """Load conversation history from SQLite."""
+    try:
+        with get_db() as conn:
+            row = conn.execute(
+                "SELECT messages FROM conversation_history WHERE session_id = ? AND character = ?",
+                (session_id, character)
+            ).fetchone()
+            if row:
+                return json.loads(row["messages"])
+    except Exception as e:
+        logger.warning(f"Failed to load conversation: {e}")
+    return []
+
+
+def save_conversation(session_id: str, character: str, messages: list):
+    """Save conversation history to SQLite."""
+    try:
+        with get_db() as conn:
+            conn.execute(
+                "INSERT INTO conversation_history (session_id, character, messages, updated_at) "
+                "VALUES (?, ?, ?, datetime('now')) "
+                "ON CONFLICT(session_id, character) DO UPDATE SET messages = ?, updated_at = datetime('now')",
+                (session_id, character, json.dumps(messages), json.dumps(messages))
+            )
+            conn.commit()
+    except Exception as e:
+        logger.warning(f"Failed to save conversation: {e}")
+
+
+def clear_conversation(session_id: str, character: str):
+    """Clear conversation history for a character."""
+    try:
+        with get_db() as conn:
+            conn.execute(
+                "DELETE FROM conversation_history WHERE session_id = ? AND character = ?",
+                (session_id, character)
+            )
+            conn.commit()
+    except Exception as e:
+        logger.warning(f"Failed to clear conversation: {e}")
 
 
 # ─── Database ─────────────────────────────────────────────────────────────────
@@ -104,14 +149,34 @@ def init_db():
             );
 
             CREATE TABLE IF NOT EXISTS subscribers (
-                code        TEXT PRIMARY KEY,
-                email       TEXT,
-                plan        TEXT,
-                created_at  TEXT NOT NULL DEFAULT (datetime('now')),
-                used_at     TEXT,
-                active      INTEGER NOT NULL DEFAULT 1
+                code               TEXT PRIMARY KEY,
+                email              TEXT,
+                plan               TEXT,
+                stripe_session_id  TEXT,
+                created_at         TEXT NOT NULL DEFAULT (datetime('now')),
+                used_at            TEXT,
+                active             INTEGER NOT NULL DEFAULT 1
+            );
+
+            -- Add stripe_session_id column if upgrading from older schema
+            -- (SQLite ignores ALTER if column already exists via IF NOT EXISTS workaround)
+            CREATE INDEX IF NOT EXISTS idx_subscribers_stripe_session
+                ON subscribers(stripe_session_id);
+
+            CREATE TABLE IF NOT EXISTS conversation_history (
+                session_id   TEXT    NOT NULL,
+                character    TEXT    NOT NULL,
+                messages     TEXT    NOT NULL DEFAULT '[]',
+                updated_at   TEXT    NOT NULL DEFAULT (datetime('now')),
+                PRIMARY KEY (session_id, character)
             );
         """)
+        # Safe migration: add stripe_session_id column to existing subscribers table
+        try:
+            conn.execute("ALTER TABLE subscribers ADD COLUMN stripe_session_id TEXT")
+            logger.info("Migrated subscribers table: added stripe_session_id column")
+        except sqlite3.OperationalError:
+            pass  # Column already exists — this is expected after first migration
         conn.commit()
     logger.info(f"Database ready: {DB_PATH}")
 
@@ -146,9 +211,9 @@ def check_rate_limit(session_id):
 # If neither is set → open access (dev mode).
 # Set QC_ADMIN_KEY to protect the /admin/* management endpoints.
 
-_raw_codes = os.getenv("QC_ACCESS_CODES", "")
+_raw_codes = os.getenv("QC_ACCESS_CODES", "LAUNCH")
 STATIC_CODES = set(c.strip().upper() for c in _raw_codes.split(",") if c.strip())
-AUTH_ENABLED = bool(STATIC_CODES) or os.getenv("QC_AUTH_ENABLED", "").lower() == "true"
+AUTH_ENABLED = os.getenv("QC_AUTH_ENABLED", "true").lower() != "false"  # Auth ON by default
 ADMIN_KEY = os.getenv("QC_ADMIN_KEY", "")
 
 app.permanent_session_lifetime = timedelta(days=7)
@@ -894,14 +959,15 @@ def get_session_id():
 
 
 def get_history(session_id, character):
-    return conversation_store.setdefault(session_id, {}).setdefault(character, [])
+    return get_conversation(session_id, character)
 
 
 def append_history(session_id, character, role, content):
-    history = get_history(session_id, character)
+    history = get_conversation(session_id, character)
     history.append({"role": role, "content": content})
     if len(history) > 50:
-        conversation_store[session_id][character] = history[-50:]
+        history = history[-50:]
+    save_conversation(session_id, character, history)
 
 
 # ─── Routes ──────────────────────────────────────────────────────────────────
@@ -1115,8 +1181,7 @@ def clear():
     data = request.get_json(silent=True) or {}
     character = (data.get("character") or "claire").lower().strip()
     session_id = get_session_id()
-    if session_id in conversation_store:
-        conversation_store[session_id].pop(character, None)
+    clear_conversation(session_id, character)
     return jsonify({"ok": True})
 
 
@@ -1133,6 +1198,173 @@ def signal_check():
         "suggested_character": suggested,
         "suggested_name": CHARACTER_DISPLAY.get(suggested, {}).get("name", "Claire")
     })
+
+
+# ─── Stripe Integration ──────────────────────────────────────────────────────
+# Handles checkout.session.completed to auto-provision access codes.
+# Required env vars on Railway:
+#   STRIPE_SECRET_KEY      — sk_live_... (for retrieving checkout sessions)
+#   STRIPE_WEBHOOK_SECRET  — whsec_...  (for verifying webhook signatures)
+
+import stripe as _stripe_lib
+
+STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY", "")
+STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
+
+if STRIPE_SECRET_KEY:
+    _stripe_lib.api_key = STRIPE_SECRET_KEY
+else:
+    logger.warning("STRIPE_SECRET_KEY not set — Stripe session lookup disabled")
+
+
+# Map Stripe price amounts (in cents) to plan names
+STRIPE_PRICE_TO_PLAN = {
+    999:   "basic",
+    1999:  "premium",
+    17999: "annual",
+}
+
+
+def _provision_code(email: str, plan: str = "basic", stripe_session_id: str = None) -> str:
+    """Generate and store a subscriber access code. Returns the code."""
+    code = "QC-" + "".join(_sec.choice(_str.ascii_uppercase + _str.digits) for _ in range(8))
+    with get_db() as conn:
+        conn.execute(
+            "INSERT INTO subscribers (code, email, plan, stripe_session_id) VALUES (?, ?, ?, ?)",
+            (code, email or None, plan, stripe_session_id)
+        )
+        conn.commit()
+    logger.info(f"Provisioned {plan} code for {email or 'anon'}: {code}")
+    return code
+
+
+def _lookup_code_by_stripe_session(stripe_session_id: str):
+    """Find existing code for a Stripe checkout session."""
+    try:
+        with get_db() as conn:
+            row = conn.execute(
+                "SELECT code, plan FROM subscribers WHERE stripe_session_id = ? AND active = 1 "
+                "ORDER BY created_at DESC LIMIT 1",
+                (stripe_session_id,)
+            ).fetchone()
+            if row:
+                return {"code": row["code"], "plan": row["plan"]}
+    except Exception as e:
+        logger.warning(f"Code lookup by session error: {e}")
+    return None
+
+
+def _lookup_code_by_email(email: str):
+    """Find most recent active code for an email."""
+    try:
+        with get_db() as conn:
+            row = conn.execute(
+                "SELECT code, plan FROM subscribers WHERE email = ? AND active = 1 "
+                "ORDER BY created_at DESC LIMIT 1",
+                (email,)
+            ).fetchone()
+            if row:
+                return {"code": row["code"], "plan": row["plan"]}
+    except Exception as e:
+        logger.warning(f"Code lookup by email error: {e}")
+    return None
+
+
+@app.route("/stripe/webhook", methods=["POST"])
+def stripe_webhook():
+    """Receive Stripe events and auto-provision subscriber codes."""
+    payload = request.get_data(as_text=True)
+
+    # Verify webhook signature (REQUIRED in production)
+    if STRIPE_WEBHOOK_SECRET:
+        try:
+            sig_header = request.headers.get("Stripe-Signature", "")
+            event = _stripe_lib.Webhook.construct_event(payload, sig_header, STRIPE_WEBHOOK_SECRET)
+        except Exception as e:
+            logger.error(f"Stripe webhook signature/parse error: {e}")
+            return jsonify({"error": "Invalid signature"}), 400
+    else:
+        logger.warning("STRIPE_WEBHOOK_SECRET not set — accepting unverified webhook (INSECURE)")
+        try:
+            event = json.loads(payload)
+        except json.JSONDecodeError:
+            return jsonify({"error": "Invalid payload"}), 400
+
+    if event.get("type") == "checkout.session.completed":
+        session_data = event.get("data", {}).get("object", {})
+        stripe_session_id = session_data.get("id", "")
+        email = (
+            session_data.get("customer_email")
+            or session_data.get("customer_details", {}).get("email", "")
+        )
+
+        # Determine plan from metadata or amount
+        plan = "basic"
+        metadata = session_data.get("metadata", {})
+        if metadata.get("plan"):
+            plan = metadata["plan"]
+        elif session_data.get("amount_total"):
+            plan = STRIPE_PRICE_TO_PLAN.get(session_data["amount_total"], "basic")
+
+        # Check if already provisioned (idempotency guard)
+        existing = _lookup_code_by_stripe_session(stripe_session_id)
+        if existing:
+            logger.info(f"Stripe webhook: code already exists for session {stripe_session_id[:16]}...")
+            return jsonify({"ok": True}), 200
+
+        try:
+            code = _provision_code(email, plan, stripe_session_id)
+            logger.info(f"Stripe webhook: provisioned {plan} for {email or 'anon'} (session={stripe_session_id[:16]}...)")
+        except Exception as e:
+            logger.error(f"Stripe webhook provisioning error: {e}")
+            return jsonify({"error": "Provisioning failed"}), 500
+
+    return jsonify({"ok": True}), 200
+
+
+@app.route("/stripe/success", methods=["GET"])
+def stripe_success():
+    """Post-payment success page — renders HTML with access code."""
+    stripe_session_id = request.args.get("session_id", "").strip()
+    code = None
+    plan = None
+
+    if stripe_session_id:
+        # First check if webhook already provisioned a code
+        result = _lookup_code_by_stripe_session(stripe_session_id)
+        if result:
+            code = result["code"]
+            plan = result["plan"]
+        elif STRIPE_SECRET_KEY:
+            # Webhook hasn't fired yet — retrieve session from Stripe and provision now
+            try:
+                checkout = _stripe_lib.checkout.Session.retrieve(stripe_session_id)
+                if checkout.payment_status == "paid":
+                    email = checkout.customer_email or (checkout.customer_details or {}).get("email", "")
+                    plan_name = "basic"
+                    if checkout.metadata and checkout.metadata.get("plan"):
+                        plan_name = checkout.metadata["plan"]
+                    elif checkout.amount_total:
+                        plan_name = STRIPE_PRICE_TO_PLAN.get(checkout.amount_total, "basic")
+                    code = _provision_code(email, plan_name, stripe_session_id)
+                    plan = plan_name
+                    logger.info(f"Success page: provisioned {plan_name} for {email or 'anon'} (direct)")
+            except Exception as e:
+                logger.error(f"Stripe session retrieve error: {e}")
+
+    return render_template("success.html", code=code, plan=plan, session_id=stripe_session_id)
+
+
+@app.route("/stripe/check-code", methods=["GET"])
+def stripe_check_code():
+    """Polling endpoint — frontend checks if a code has been provisioned yet."""
+    stripe_session_id = request.args.get("session_id", "").strip()
+    if not stripe_session_id:
+        return jsonify({"code": None})
+    result = _lookup_code_by_stripe_session(stripe_session_id)
+    if result:
+        return jsonify({"code": result["code"], "plan": result["plan"]})
+    return jsonify({"code": None})
 
 
 # ─── Error Handlers ──────────────────────────────────────────────────────────
