@@ -42,15 +42,11 @@ def get_auth() -> OAuth1:
 
 def is_configured() -> bool:
     """Check if Twitter credentials are set."""
-    return all(
-        os.getenv(k)
-        for k in [
-            "TWITTER_API_KEY",
-            "TWITTER_API_SECRET",
-            "TWITTER_ACCESS_TOKEN",
-            "TWITTER_ACCESS_SECRET",
-        ]
-    )
+    keys = ["TWITTER_API_KEY", "TWITTER_API_SECRET", "TWITTER_ACCESS_TOKEN", "TWITTER_ACCESS_SECRET"]
+    for k in keys:
+        v = os.getenv(k, "")
+        logger.info(f"  {k}: {'set (' + v[:4] + '...' + v[-4:] + ')' if len(v) > 8 else 'MISSING' if not v else 'set (short)'}")
+    return all(os.getenv(k) for k in keys)
 
 
 def upload_media(image_path: Path) -> str | None:
