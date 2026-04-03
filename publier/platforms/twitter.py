@@ -1,31 +1,26 @@
 """
-X/Twitter posting client — v2 API with OAuth 1.0a.
+X/Twitter posting client — tries v2 API first, falls back to v1.1.
+
+Pay-per-use standalone apps may not have v2 POST access (known X bug).
+The v1.1 fallback uses /1.1/statuses/update.json which works with
+standalone apps + OAuth 1.0a.
 
 Setup:
-  1. Go to developer.x.com → sign up for Free tier
-  2. Create a Project + App
-  3. Enable OAuth 1.0a with Read + Write permissions
-  4. Set up User Authentication (Web App type) with callback URL
-  5. Generate: API Key, API Secret, Access Token, Access Token Secret
-  6. Add to .env:
-       TWITTER_API_KEY=...
-       TWITTER_API_SECRET=...
+  1. Go to developer.x.com → sign up (pay-per-use)
+  2. Create an App with Read + Write permissions
+  3. Set up User Authentication (Web App type) with callback URL
+  4. Generate: Consumer Key, Consumer Secret, Access Token, Access Token Secret
+  5. Add to .env:
+       TWITTER_API_KEY=...       (Consumer Key)
+       TWITTER_API_SECRET=...    (Consumer Secret)
        TWITTER_ACCESS_TOKEN=...
        TWITTER_ACCESS_SECRET=...
-
-Free tier limits: 1,500 tweets/month, 1 app.
 """
 
 from __future__ import annotations
 
 import os
 import logging
-import hmac
-import hashlib
-import base64
-import time
-import urllib.parse
-import uuid
 from pathlib import Path
 
 import requests
@@ -34,16 +29,17 @@ from requests_oauthlib import OAuth1
 logger = logging.getLogger(__name__)
 
 UPLOAD_URL = "https://upload.twitter.com/1.1/media/upload.json"
-TWEET_URL = "https://api.twitter.com/2/tweets"
+TWEET_V2_URL = "https://api.twitter.com/2/tweets"
+TWEET_V1_URL = "https://api.twitter.com/1.1/statuses/update.json"
 
 
 def get_auth() -> OAuth1:
     """Build OAuth1 credentials from env vars."""
     return OAuth1(
-        os.environ["TWITTER_API_KEY"],
-        os.environ["TWITTER_API_SECRET"],
-        os.environ["TWITTER_ACCESS_TOKEN"],
-        os.environ["TWITTER_ACCESS_SECRET"],
+        os.environ["TWITTER_API_KEY"].strip(),
+        os.environ["TWITTER_API_SECRET"].strip(),
+        os.environ["TWITTER_ACCESS_TOKEN"].strip(),
+        os.environ["TWITTER_ACCESS_SECRET"].strip(),
     )
 
 
@@ -51,9 +47,14 @@ def is_configured() -> bool:
     """Check if Twitter credentials are set."""
     keys = ["TWITTER_API_KEY", "TWITTER_API_SECRET", "TWITTER_ACCESS_TOKEN", "TWITTER_ACCESS_SECRET"]
     for k in keys:
-        v = os.getenv(k, "")
-        logger.info(f"  {k}: {'set (' + v[:4] + '...' + v[-4:] + ', len=' + str(len(v)) + ')' if len(v) > 8 else 'MISSING' if not v else 'set (short, len=' + str(len(v)) + ')'}")
-    return all(os.getenv(k) for k in keys)
+        v = os.getenv(k, "").strip()
+        if len(v) > 8:
+            logger.info(f"  {k}: set ({v[:4]}...{v[-4:]}, len={len(v)})")
+        elif not v:
+            logger.info(f"  {k}: MISSING")
+        else:
+            logger.info(f"  {k}: set (short, len={len(v)})")
+    return all(os.getenv(k, "").strip() for k in keys)
 
 
 def upload_media(image_path: Path) -> str | None:
@@ -75,63 +76,78 @@ def upload_media(image_path: Path) -> str | None:
         return None
 
     media_id = resp.json().get("media_id_string")
-    logger.info(f"Uploaded media: {image_path.name} → {media_id}")
+    logger.info(f"Uploaded media: {image_path.name} -> {media_id}")
     return media_id
 
 
-def post_tweet(text: str, media_ids: list[str] | None = None) -> dict:
-    """
-    Post a tweet. Returns {"id": "...", "text": "..."} on success.
-    Raises on failure.
-    """
-    auth = get_auth()
-
+def post_tweet_v2(text: str, auth: OAuth1, media_ids: list[str] | None = None) -> dict | None:
+    """Try posting via v2 API. Returns result dict or None on auth failure."""
     payload = {"text": text[:280]}
     if media_ids:
         payload["media"] = {"media_ids": media_ids}
 
-    # Log the exact request for debugging
-    logger.info(f"Posting tweet to {TWEET_URL}")
-    logger.info(f"  Text length: {len(text[:280])}")
-
+    logger.info(f"Trying v2 API: {TWEET_V2_URL}")
     resp = requests.post(
-        TWEET_URL,
+        TWEET_V2_URL,
         auth=auth,
         json=payload,
         headers={"Content-Type": "application/json"},
         timeout=30,
     )
 
-    logger.info(f"  Response status: {resp.status_code}")
-    logger.info(f"  Response headers: {dict(resp.headers)}")
+    if resp.status_code in (200, 201):
+        data = resp.json().get("data", {})
+        logger.info(f"Tweet posted via v2: {data.get('id')}")
+        return data
 
-    if resp.status_code == 401:
-        # Extra diagnostics for auth failures
-        logger.error(f"AUTH FAILED (401). Response: {resp.text}")
-        logger.error("Possible causes:")
-        logger.error("  1. Keys are from wrong app (check Apps page)")
-        logger.error("  2. Access Token generated before Read+Write was enabled")
-        logger.error("  3. App not in a Project (must be inside a Project)")
-        logger.error("  4. Free tier not properly activated")
+    if resp.status_code in (401, 403):
+        logger.warning(f"v2 API returned {resp.status_code}, will try v1.1 fallback")
+        return None
 
-        # Try verifying credentials to see if keys work at all
-        verify_resp = requests.get(
-            "https://api.twitter.com/1.1/account/verify_credentials.json",
-            auth=auth,
-            timeout=15,
-        )
-        logger.info(f"  Verify credentials: {verify_resp.status_code} {verify_resp.text[:200]}")
+    # Other error — raise
+    raise RuntimeError(f"Tweet v2 failed ({resp.status_code}): {resp.text}")
 
-        raise RuntimeError(f"Tweet failed ({resp.status_code}): {resp.text}")
 
-    if resp.status_code not in (200, 201):
-        error = resp.text
-        logger.error(f"Tweet failed: {resp.status_code} {error}")
-        raise RuntimeError(f"Tweet failed ({resp.status_code}): {error}")
+def post_tweet_v1(text: str, auth: OAuth1, media_ids: list[str] | None = None) -> dict:
+    """Post via v1.1 API (works with standalone apps)."""
+    params = {"status": text[:280]}
+    if media_ids:
+        params["media_ids"] = ",".join(media_ids)
 
-    data = resp.json().get("data", {})
-    logger.info(f"Tweet posted: {data.get('id')}")
-    return data
+    logger.info(f"Trying v1.1 API: {TWEET_V1_URL}")
+    resp = requests.post(
+        TWEET_V1_URL,
+        auth=auth,
+        data=params,
+        timeout=30,
+    )
+
+    if resp.status_code in (200, 201):
+        data = resp.json()
+        tweet_id = str(data.get("id_str", data.get("id", "")))
+        logger.info(f"Tweet posted via v1.1: {tweet_id}")
+        return {"id": tweet_id, "text": data.get("text", "")}
+
+    error = resp.text
+    logger.error(f"Tweet v1.1 failed: {resp.status_code} {error}")
+    raise RuntimeError(f"Tweet failed ({resp.status_code}): {error}")
+
+
+def post_tweet(text: str, media_ids: list[str] | None = None) -> dict:
+    """
+    Post a tweet. Tries v2 first, falls back to v1.1.
+    Returns {"id": "...", "text": "..."} on success.
+    """
+    auth = get_auth()
+
+    # Try v2 first
+    result = post_tweet_v2(text, auth, media_ids)
+    if result:
+        return result
+
+    # Fall back to v1.1
+    logger.info("Falling back to v1.1 API (standalone app / pay-per-use)")
+    return post_tweet_v1(text, auth, media_ids)
 
 
 def publish(text: str, image_path: Path | None = None) -> str:
