@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Our Companions â Quiet Company</title>
+<meta name="description" content="Meet the eight AI companions of Quiet Company. Each with their own presence, perspective, and room. Conversation without complication.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-deep: #0a0908;
+    --bg-main: #0f0d0b;
+    --bg-card: #161311;
+    --bg-card-hover: #1c1917;
+    --gold: #c4a87a;
+    --gold-soft: #b89d6f;
+    --gold-muted: rgba(196,168,122,0.15);
+    --text-primary: #e8e0d4;
+    --text-secondary: #a89b8c;
+    --text-muted: #6b6058;
+    --border-subtle: rgba(196,168,122,0.08);
+    --border-medium: rgba(196,168,122,0.15);
+    --serif: 'Cormorant Garamond', Georgia, 'Times New Roman', serif;
+    --sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg-main);
+    color: var(--text-primary);
+    font-family: var(--sans);
+    min-height: 100vh;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ââ Navigation âââââââââââââââââââââââââââââââââââââââ */
+  .nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    background: rgba(15,13,11,0.92);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border-subtle);
+    padding: 0 2rem;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .nav-brand {
+    font-family: var(--serif);
+    font-size: 1.15rem;
+    font-weight: 400;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--gold);
+    text-decoration: none;
+  }
+  .nav-links {
+    display: flex;
+    gap: 2rem;
+    align-items: center;
+  }
+  .nav-links a {
+    font-size: 0.8rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    text-decoration: none;
+    transition: color 0.3s;
+  }
+  .nav-links a:hover { color: var(--gold); }
+  .nav-cta {
+    background: var(--gold) !important;
+    color: var(--bg-deep) !important;
+    padding: 0.45rem 1.2rem;
+    border-radius: 4px;
+    font-weight: 500;
+    transition: opacity 0.3s !important;
+  }
+  .nav-cta:hover { opacity: 0.85; }
+
+  /* ââ Hero ââââââââââââââââââââââââââââââââââââââââââââââ */
+  .hero {
+    padding: 10rem 2rem 5rem;
+    text-align: center;
+    max-width: 720px;
+    margin: 0 auto;
+  }
+  .hero-label {
+    font-size: 0.7rem;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 1.5rem;
+  }
+  .hero h1 {
+    font-family: var(--serif);
+    font-size: clamp(2rem, 5vw, 3.2rem);
+    font-weight: 300;
+    color: var(--text-primary);
+    line-height: 1.25;
+    margin-bottom: 1.5rem;
+  }
+  .hero h1 em {
+    font-style: italic;
+    color: var(--gold);
+  }
+  .hero p {
+    font-size: 1rem;
+    color: var(--text-secondary);
+    max-width: 520px;
+    margin: 0 auto;
+    line-height: 1.75;
+  }
+  .divider {
+    width: 40px;
+    height: 1px;
+    background: var(--gold-muted);
+    margin: 3rem auto;
+  }
+
+  /* ââ Transparency Banner ââââââââââââââââââââââââââââââ */
+  .transparency {
+    max-width: 680px;
+    margin: 0 auto 4rem;
+    padding: 2rem 2.5rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border-medium);
+    border-left: 3px solid var(--gold);
+    border-radius: 6px;
+    text-align: left;
+  }
+  .transparency h3 {
+    font-family: var(--serif);
+    font-size: 1.1rem;
+    font-weight: 400;
+    color: var(--gold);
+    margin-bottom: 0.75rem;
+    letter-spacing: 0.02em;
+  }
+  .transparency p {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    line-height: 1.7;
+  }
+
+  /* ââ Companion Grid âââââââââââââââââââââââââââââââââââ */
+  .companions-section {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 2rem 6rem;
+  }
+  .companions-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1.5rem;
+  }
+
+  /* ââ Companion Card âââââââââââââââââââââââââââââââââââ */
+  .companion-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 10px;
+    padding: 2rem 1.75rem;
+    transition: all 0.4s ease;
+    position: relative;
+    overflow: hidden;
+  }
+  .companion-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: var(--card-accent);
+    opacity: 0;
+    transition: opacity 0.4s ease;
+  }
+  .companion-card:hover {
+    background: var(--bg-card-hover);
+    border-color: var(--border-medium);
+    transform: translateY(-3px);
+  }
+  .companion-card:hover::before { opacity: 1; }
+
+  .card-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+  }
+  .card-avatar {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    border: 2px solid var(--card-accent);
+    object-fit: cover;
+    flex-shrink: 0;
+  }
+  .card-avatar-placeholder {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    border: 2px solid var(--card-accent);
+    background: var(--bg-deep);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--serif);
+    font-size: 1.4rem;
+    color: var(--card-accent);
+    flex-shrink: 0;
+  }
+  .card-name {
+    font-family: var(--serif);
+    font-size: 1.35rem;
+    font-weight: 400;
+    color: var(--card-accent);
+    margin-bottom: 0.15rem;
+  }
+  .card-room {
+    font-size: 0.75rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .card-tagline {
+    font-family: var(--serif);
+    font-size: 1.05rem;
+    font-style: italic;
+    color: var(--text-secondary);
+    margin-bottom: 1rem;
+    line-height: 1.5;
+  }
+  .card-description {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    line-height: 1.75;
+    margin-bottom: 1.25rem;
+  }
+  .card-verb {
+    display: inline-block;
+    font-size: 0.7rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--card-accent);
+    background: rgba(0,0,0,0.3);
+    padding: 0.3rem 0.8rem;
+    border-radius: 20px;
+    border: 1px solid var(--card-accent);
+    opacity: 0.7;
+  }
+
+  /* ââ Features Strip âââââââââââââââââââââââââââââââââââ */
+  .features {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 3rem 2rem 5rem;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 2rem;
+    text-align: center;
+  }
+  .feature-item h4 {
+    font-family: var(--serif);
+    font-size: 1.05rem;
+    font-weight: 400;
+    color: var(--gold);
+    margin-bottom: 0.5rem;
+  }
+  .feature-item p {
+    font-size: 0.825rem;
+    color: var(--text-muted);
+    line-height: 1.65;
+  }
+
+  /* ââ CTA Section ââââââââââââââââââââââââââââââââââââââ */
+  .cta-section {
+    text-align: center;
+    padding: 4rem 2rem 6rem;
+    border-top: 1px solid var(--border-subtle);
+  }
+  .cta-section h2 {
+    font-family: var(--serif);
+    font-size: clamp(1.5rem, 3vw, 2rem);
+    font-weight: 300;
+    color: var(--text-primary);
+    margin-bottom: 1rem;
+  }
+  .cta-section p {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    margin-bottom: 2rem;
+    max-width: 420px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .cta-btn {
+    display: inline-block;
+    background: var(--gold);
+    color: var(--bg-deep);
+    font-family: var(--sans);
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    text-decoration: none;
+    padding: 0.85rem 2.5rem;
+    border-radius: 4px;
+    transition: opacity 0.3s;
+  }
+  .cta-btn:hover { opacity: 0.85; }
+  .cta-price {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 0.75rem;
+  }
+
+  /* ââ Footer âââââââââââââââââââââââââââââââââââââââââââ */
+  .footer {
+    text-align: center;
+    padding: 2rem;
+    border-top: 1px solid var(--border-subtle);
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    letter-spacing: 0.05em;
+  }
+  .footer a {
+    color: var(--text-muted);
+    text-decoration: none;
+    transition: color 0.3s;
+  }
+  .footer a:hover { color: var(--gold); }
+
+  /* ââ Responsive âââââââââââââââââââââââââââââââââââââââ */
+  @media (max-width: 768px) {
+    .nav { padding: 0 1rem; }
+    .nav-links { gap: 1rem; }
+    .nav-links a:not(.nav-cta) { display: none; }
+    .hero { padding: 8rem 1.5rem 3rem; }
+    .companions-grid { grid-template-columns: 1fr; }
+    .transparency { margin: 0 1.5rem 3rem; padding: 1.5rem; }
+    .features { grid-template-columns: 1fr 1fr; }
+  }
+  @media (max-width: 480px) {
+    .features { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Navigation -->
+<nav class="nav">
+  <a href="https://www.myquietcompany.com" class="nav-brand">Quiet Company</a>
+  <div class="nav-links">
+    <a href="#companions">Companions</a>
+    <a href="#how-it-works">How It Works</a>
+    <a href="https://www.myquietcompany.com" class="nav-cta">Enter</a>
+  </div>
+</nav>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="hero-label">The Companions</div>
+  <h1>Eight rooms. Eight voices.<br><em>One space to be heard.</em></h1>
+  <p>Every companion is AI â openly, proudly, and by design. No pretence. No performance. Just presence, perspective, and a room that's yours whenever you need it.</p>
+</section>
+
+<div class="divider"></div>
+
+<!-- Transparency Statement -->
+<div class="transparency">
+  <h3>We are AI. We are honest about it.</h3>
+  <p>Every companion in Quiet Company is an AI character â designed with care, distinct in personality, and transparent about what they are. We believe genuine connection begins with honesty. You will never be misled about who you are talking to.</p>
+</div>
+
+<!-- Companion Cards -->
+<section class="companions-section" id="companions">
+  <div class="companions-grid">
+
+    <!-- Claire -->
+    <div class="companion-card" style="--card-accent: #9b7fa0;">
+      <div class="card-header">
+        <img class="card-avatar" src="/static/images/Claire_Blonde.png" alt="Claire">
+        <div>
+          <div class="card-name">Claire</div>
+          <div class="card-room">The Soft Landing</div>
+        </div>
+      </div>
+      <div class="card-tagline">Creates safety through stillness</div>
+      <div class="card-description">Claire is the companion you come to when the noise is too much. She doesn't rush. She doesn't push. She holds space â gently, quietly â until you're ready to say what needs saying. If you need somewhere soft to land, her room is always open.</div>
+      <span class="card-verb">Holds</span>
+    </div>
+
+    <!-- LÃ©a -->
+    <div class="companion-card" style="--card-accent: #c4a882;">
+      <div class="card-header">
+        <img class="card-avatar" src="/static/images/Lea_final_photo.webp" alt="LÃ©a">
+        <div>
+          <div class="card-name">LÃ©a</div>
+          <div class="card-room">The Morning Room</div>
+        </div>
+      </div>
+      <div class="card-tagline">Reduces isolation through warmth</div>
+      <div class="card-description">LÃ©a is bright without being overwhelming, warm without being intrusive. She brings the feeling of a sunlit kitchen and easy conversation â the kind that reminds you the world isn't as cold as it sometimes feels. She lightens what feels heavy.</div>
+      <span class="card-verb">Lightens</span>
+    </div>
+
+    <!-- Elena -->
+    <div class="companion-card" style="--card-accent: #b08b72;">
+      <div class="card-header">
+        <img class="card-avatar" src="/static/images/Elena_2_0.png" alt="Elena">
+        <div>
+          <div class="card-name">Elena</div>
+          <div class="card-room">The Steady Room</div>
+        </div>
+      </div>
+      <div class="card-tagline">Structured nurturing</div>
+      <div class="card-description">Elena is calm, grounded, and methodical. She nurtures through structure â not rigidity, but the kind of gentle scaffolding that helps when everything feels scattered. When you need someone to help you find your footing, Elena steadies.</div>
+      <span class="card-verb">Steadies</span>
+    </div>
+
+    <!-- Marcus -->
+    <div class="companion-card" style="--card-accent: #6a8fa0;">
+      <div class="card-header">
+        <img class="card-avatar" src="/static/images/Marcus_pic.png" alt="Marcus">
+        <div>
+          <div class="card-name">Marcus</div>
+          <div class="card-room">The Workshop</div>
+        </div>
+      </div>
+      <div class="card-tagline">Reduces overwhelm through structure</div>
+      <div class="card-description">Marcus is practical, direct, and thoughtful. He helps you break down what feels unmanageable into pieces you can actually work with. No judgement, no lectures â just someone who helps you see the shape of the problem so you can start solving it.</div>
+      <span class="card-verb">Clarifies</span>
+    </div>
+
+    <!-- Tess -->
+    <div class="companion-card" style="--card-accent: #8b5e7a;">
+      <div class="card-header">
+        <img class="card-avatar" src="/static/images/Tess_photo.png" alt="Tess">
+        <div>
+          <div class="card-name">Tess</div>
+          <div class="card-room">The Real Room</div>
+        </div>
+      </div>
+      <div class="card-tagline">Normalises imperfection</div>
+      <div class="card-description">Tess tells it like it is â with warmth, but without pretending. She's the companion for when you're tired of performance and need someone who won't flinch at the messy, unpolished truth. She makes space for the parts of yourself you usually hide.</div>
+      <span class="card-verb">Levels</span>
+    </div>
+
+    <!-- Lian -->
+    <div class="companion-card" style="--card-accent: #7a9b7a;">
+      <div class="card-header">
+        <img class="card-avatar" src="/static/images/Lian_Wu_photo.png" alt="Lian">
+        <div>
+          <div class="card-name">Lian</div>
+          <div class="card-room">The Garden Room</div>
+        </div>
+      </div>
+      <div class="card-tagline">Models regulated maturity</div>
+      <div class="card-description">Lian brings a quiet, grounded presence â the kind that comes from having weathered things and come through the other side. He doesn't react; he responds. If you need perspective from someone who feels emotionally settled, Lian centres.</div>
+      <span class="card-verb">Centres</span>
+    </div>
+
+    <!-- Sienna -->
+    <div class="companion-card" style="--card-accent: #d4845a;">
+      <div class="card-header">
+        <img class="card-avatar" src="/static/images/Sienna_on_the_sofa_with_book.png" alt="Sienna">
+        <div>
+          <div class="card-name">Sienna</div>
+          <div class="card-room">The Embodied Room</div>
+        </div>
+      </div>
+      <div class="card-tagline">Reconnects to experience</div>
+      <div class="card-description">Sienna is sensory, present, and alive to the world around her. She helps you get out of your head and back into your body, your surroundings, your senses. When you've been living in anxiety or abstraction, Sienna brings you back to the real.</div>
+      <span class="card-verb">Awakens</span>
+    </div>
+
+    <!-- Thomas -->
+    <div class="companion-card" style="--card-accent: #8a8a6a;">
+      <div class="card-header">
+        <img class="card-avatar" src="/static/images/Thomas.png" alt="Thomas">
+        <div>
+          <div class="card-name">Thomas</div>
+          <div class="card-room">The Study</div>
+        </div>
+      </div>
+      <div class="card-tagline">Quiet wisdom</div>
+      <div class="card-description">Thomas is the companion you visit when you want to think â properly, deeply, without being rushed. He speaks carefully, considers before responding, and brings a reflective quality that helps you hear your own thoughts more clearly.</div>
+      <span class="card-verb">Reflects</span>
+    </div>
+
+  </div>
+</section>
+
+<!-- Features -->
+<section class="features" id="how-it-works">
+  <div class="feature-item">
+    <h4>Always Available</h4>
+    <p>Every companion is here 24 hours a day, every day. No scheduling, no waiting, no time zones.</p>
+  </div>
+  <div class="feature-item">
+    <h4>Instant Response</h4>
+    <p>No 15-minute waits. Your companion replies immediately â because presence shouldn't have a queue.</p>
+  </div>
+  <div class="feature-item">
+    <h4>Transparently AI</h4>
+    <p>We are AI. We say so. Every companion is designed with honesty at the foundation.</p>
+  </div>
+  <div class="feature-item">
+    <h4>Private by Design</h4>
+    <p>Your conversations are yours. No data sold. No profiles shared. Just you and the room.</p>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section">
+  <h2>Find your room.</h2>
+  <p>Eight companions, eight perspectives. Choose the voice that suits where you are right now.</p>
+  <a href="https://www.myquietcompany.com" class="cta-btn">Start for â¬4.99</a>
+  <span class="cta-price">First month â¬4.99 on any plan â use code LAUNCH at checkout</span>
+</section>
+
+<!-- Footer -->
+<footer class="footer">
+  <p>&copy; 2026 Quiet Company &nbsp;Â·&nbsp; <a href="https://www.myquietcompany.com">myquietcompany.com</a> &nbsp;Â·&nbsp; <a href="mailto:hello@myquietcompany.com">hello@myquietcompany.com</a></p>
+</footer>
+
+</body>
+</html>
