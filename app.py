@@ -1063,6 +1063,11 @@ def home():
     return render_template("index.html")
 
 
+@app.route("/companions")
+def companions_page():
+    return render_template("companions.html")
+
+
 @app.route("/health")
 def health():
     """Health check for deployment platforms."""
